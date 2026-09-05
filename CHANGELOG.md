@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TG_API_BASE` to override the Bot API root, so the bridge can be driven by a
   stand-in Telegram — see the `bridge-for-agent-test` project.
 
+- `ROADMAP.md`, and deployment topologies in the README.
+
 ### Changed
 
 - A prompt nobody answered is now reported as `timeout` on the admin page,

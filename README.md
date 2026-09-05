@@ -83,8 +83,32 @@ ability to tell sessions apart.
 ### One poller per bot token
 
 `getUpdates` is exclusive — two bridge instances on the same token fight over
-updates (409 Conflict). Run **one** bridge for all your Claude Code hosts, or
-give each host its own bot and its own group.
+updates (409 Conflict). The constraint is per **token**, not per group:
+several bots can post into the same group quite happily. And you never need a
+bot per session — that is what topics are for; one bridge serves many parallel
+sessions.
+
+Copying one token to two machines is the one configuration that misbehaves
+silently, with each poller randomly stealing the other's updates.
+
+### Deployment topologies
+
+| | Bots | Bridges | Needs a token + TLS? |
+|---|---|---|---|
+| **One machine** | 1 | 1, on `127.0.0.1` | no |
+| **Many machines, one bridge** | 1 | 1, on the LAN | **yes**, both |
+| **Many machines, one bridge each** | 1 per machine | 1 per machine, loopback | no |
+
+- **One machine** is the default and needs no security setup at all: a
+  loopback bridge, unlimited sessions, one topic each.
+- **One shared bridge** is the "run one bridge for all your hosts" case. The
+  other hosts POST across the network, so `BRIDGE_TOKEN` and TLS are both
+  mandatory — the preflight refuses to start without them.
+- **A bridge per machine** keeps every listener on loopback, so there is no
+  shared secret, no certificate and no exposed port anywhere. Each needs its
+  own bot token, because of the exclusivity above, but they can all post into
+  one group. Usually the easiest to secure; the cost is a `/newbot` per
+  machine.
 
 ## Web admin page
 
@@ -262,6 +286,8 @@ cd ../bridge-for-agent-test
 ```
 
 ## Known gaps / next steps
+
+Fuller reasoning, with priorities, is in [ROADMAP.md](ROADMAP.md).
 
 - `multiSelect` questions are answered single-choice (MVP).
 - **Sending a *new* prompt into a running interactive session is not possible

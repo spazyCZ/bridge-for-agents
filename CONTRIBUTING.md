@@ -47,6 +47,9 @@ Tests that import it must set `TG_BOT_TOKEN` and `TG_CHAT_ID` first — see
 
 ## Pull requests
 
+Ideas worth picking up, and the reasoning behind their priority, are in
+[ROADMAP.md](ROADMAP.md).
+
 - One logical change per PR; keep the diff focused.
 - Update `README.md` when you change configuration or behaviour.
 - Add a line to the `Unreleased` section of `CHANGELOG.md`.
