@@ -307,6 +307,11 @@ your machine do, who is trusted, and a pre-flight checklist — is in
   Telegram are outbound; receiving an answer is the bridge holding a
   `getUpdates` request open, not Telegram dialling in. The only listener is the
   hook endpoint, on `127.0.0.1` unless you change it.
+- **Credentials are stripped before they leave the host.** AWS, GitHub,
+  OpenAI, Slack and Google keys, JWTs, private keys, `PASSWORD=…` assignments,
+  `--token` flags and `Bearer` headers are replaced, and the message says how
+  many were hidden. Best effort, not a guarantee — `BRIDGE_REDACT=0` disables
+  it, `BRIDGE_REDACT_EXTRA` adds your own patterns.
 - **The chat cannot start anything.** It can only answer a hook Claude Code
   already raised, and an approval covers that one tool call. But a free-text
   reply becomes a deny reason or a question's answer, so it *does* reach

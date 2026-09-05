@@ -50,6 +50,11 @@ Env:
   BRIDGE_ADMIN_HISTORY
                  events kept in memory per session, default 200. History is
                  never written to disk and is lost on restart
+  BRIDGE_REDACT  set to 0 to send tool inputs to the chat unredacted. On by
+                 default: recognisable credentials are replaced before the
+                 text leaves the host. Best effort, never a guarantee
+  BRIDGE_REDACT_EXTRA
+                 path to a file of extra regexes, one per line, # for comments
 """
 from __future__ import annotations
 
@@ -67,7 +72,7 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout, web
 
-from . import admin, store
+from . import admin, redact, store
 
 log = logging.getLogger("bridge")
 
@@ -87,6 +92,10 @@ WAIT = int(os.environ.get("BRIDGE_TIMEOUT", "540"))
 ADMIN = os.environ.get("BRIDGE_ADMIN") == "1"
 ADMIN_TOKEN = os.environ.get("BRIDGE_ADMIN_TOKEN", "") or TOKEN
 HISTORY = int(os.environ.get("BRIDGE_ADMIN_HISTORY", "200"))
+REDACTOR = redact.Redactor(
+    enabled=os.environ.get("BRIDGE_REDACT", "1") != "0",
+    extra_path=os.environ.get("BRIDGE_REDACT_EXTRA", ""),
+)
 
 Answer = tuple[str, str]  # ("button", value) | ("text", value)
 
@@ -331,21 +340,34 @@ def session_tag(ev: dict) -> str:
 
 
 def summarize_tool(tool: str, inp: dict) -> str:
+    """One line describing a tool call, with secrets already removed.
+
+    Every path that turns `tool_input` into text for the chat or the admin page
+    goes through here, so this is the one place redaction has to happen. It
+    returns the text only; `summarize_counted` gives the number hidden.
+    """
+    return summarize_counted(tool, inp)[0]
+
+
+def summarize_counted(tool: str, inp: dict) -> tuple[str, int]:
     if tool == "Bash":
-        return inp.get("command", "")
-    if tool in ("Edit", "Write", "MultiEdit", "NotebookEdit", "Read"):
-        return inp.get("file_path", "")
-    s = json.dumps(inp, ensure_ascii=False)
-    return s if len(s) < 600 else s[:600] + "…"
+        raw = inp.get("command", "")
+    elif tool in ("Edit", "Write", "MultiEdit", "NotebookEdit", "Read"):
+        raw = inp.get("file_path", "")   # never the content
+    else:
+        raw = json.dumps(inp, ensure_ascii=False)
+    text, hidden = REDACTOR.scrub(raw)
+    # Truncate after redacting, so a secret cannot survive by straddling the cut.
+    return (text if len(text) < 600 else text[:600] + "…"), hidden
 
 
 def describe(ev: dict) -> str:
     """One line for the admin feed: what this event is actually about."""
     name = ev.get("hook_event_name")
     if name == "Stop":
-        return (ev.get("last_assistant_message") or "").strip()[:300]
+        return REDACTOR.scrub((ev.get("last_assistant_message") or "").strip())[0][:300]
     if name == "Notification":
-        return ev.get("message", "")
+        return REDACTOR.scrub(ev.get("message", ""))[0]
     if name == "SessionEnd":
         return ev.get("reason", "")
     inp = ev.get("tool_input", {}) or {}
@@ -375,8 +397,9 @@ async def on_permission(chan: Channel, ev: dict, thread: Any) -> dict:
     tool = ev.get("tool_name", "?")
     if tool == "AskUserQuestion":  # handled on PreToolUse; let the CLI proceed
         return {}
+    summary, hidden = summarize_counted(tool, ev.get("tool_input", {}) or {})
     text = (f"🔐 <b>{esc(tool)}</b> wants permission\n{session_tag(ev)}"
-            f"<pre>{esc(summarize_tool(tool, ev.get('tool_input', {})))}</pre>")
+            f"<pre>{esc(summary)}</pre>{redact.note(hidden)}")
     ans = await chan.ask(text, [("✅ Allow", "allow"), ("❌ Deny", "deny"),
                                 ("💻 Answer in terminal", "ask")], WAIT, thread)
     if ans is None or ans[1] == "ask":
@@ -416,10 +439,11 @@ async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
 
 
 async def on_stop(chan: Channel, ev: dict, thread: Any) -> dict:
-    msg = (ev.get("last_assistant_message") or "").strip()
+    msg, hidden = REDACTOR.scrub((ev.get("last_assistant_message") or "").strip())
     if msg:
-        asyncio.create_task(chan.send(f"🏁 <b>Done</b>\n{session_tag(ev)}\n{esc(msg[:3000])}",
-                                      thread=thread))
+        asyncio.create_task(chan.send(
+            f"🏁 <b>Done</b>\n{session_tag(ev)}\n{esc(msg[:3000])}{redact.note(hidden)}",
+            thread=thread))
     return {}
 
 

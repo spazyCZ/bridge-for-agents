@@ -7,6 +7,10 @@ considered and why.
 Tiers are about **value per unit of effort**, not difficulty. Anything in
 Tier 1 is small and changes the product materially.
 
+Shipped so far: **secret redaction** — recognisable credentials are removed
+from tool inputs before they leave the host. See
+[SECURITY-MODEL.md](SECURITY-MODEL.md#what-is-enforced-today).
+
 ## At a glance
 
 Effort is rough: **S** is an afternoon, **M** a day or two, **L** a design
@@ -15,7 +19,6 @@ question before any code.
 | Tier | What | Why it matters | Effort |
 |---|---|---|---|
 | 1 | [Approver allowlist](#approver-identity-tg_allowed_users) | Presses are checked against the *chat*, never the person — every group member can approve, and steer | **S** |
-| 1 | [Redact secrets](#redact-secrets-before-they-leave-the-host) | `tool_input` goes to Telegram verbatim, API keys included | **S** |
 | 1 | [Auto-allow rules](#auto-allow-rules) | Thirty file reads means thirty notifications; the main reason to give up on it | **M** |
 | 2 | [Context on the prompt](#context-why-is-claude-asking) | You approve a one-line command with no idea why it was asked | **S–M** |
 | 2 | [Recover a timed-out prompt](#recovering-a-timed-out-prompt) | After the timeout the call waits on a terminal nobody is watching | **M** |
@@ -54,19 +57,6 @@ if ALLOWED and cq["from"]["id"] not in ALLOWED:
 Roughly fifteen lines, and it is the honest answer to "how do I secure the
 group" — membership is too coarse a grain for an approval authority. The same
 check belongs on free-text replies.
-
-### Redact secrets before they leave the host
-
-`summarize_tool` forwards `tool_input` verbatim, so a `Bash` command exporting
-an API key, or a `Write` whose content is a `.env` file, ships that secret to
-Telegram's servers and out of your control. The bridge exists to intercept
-sensitive operations, which makes this a design-level leak rather than a
-detail.
-
-A redaction pass before formatting — common key shapes (`sk-…`, `ghp_…`,
-`AKIA…`, `password=…`) plus a configurable `BRIDGE_REDACT` of extra patterns —
-replacing each match with `[redacted]` and noting how many were hidden. The
-full value stays visible in the terminal, where it never left the machine.
 
 ### Auto-allow rules
 

@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TG_API_BASE` to override the Bot API root, so the bridge can be driven by a
   stand-in Telegram — see the `bridge-for-agent-test` project.
 
+- Secret redaction (`redact.py`), on by default: recognisable credentials are
+  removed from tool inputs before they reach the chat or the admin page, and
+  the message reports how many were hidden. Redaction runs before the
+  600-character truncation, so a key cannot survive by straddling the cut.
+  `BRIDGE_REDACT=0` disables it; `BRIDGE_REDACT_EXTRA` points at a file of
+  extra regexes. Best effort by design — no entropy scoring, which would flag
+  git SHAs and base64 and get itself switched off.
 - Mermaid diagrams, rendered by GitHub: connection directions, one approval
   end to end, the fail-safe decision tree, and a topology decision tree.
 - `SECURITY-MODEL.md`: who starts each connection, what the chat can and

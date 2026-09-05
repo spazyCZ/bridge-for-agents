@@ -152,11 +152,18 @@ person. In a group of five, all five hold your approval authority. Keep the
 chat to yourself and the bot; an allowlist is
 [the top roadmap item](ROADMAP.md#approver-identity-tg_allowed_users).
 
-**Your commands reach Telegram's servers.** `summarize_tool` forwards
-`tool_input` as it is. A command that carries an API key ships that key to a
-third party. Redaction is
-[a planned change](ROADMAP.md#redact-secrets-before-they-leave-the-host); until
-then, assume anything Claude Code asks permission for is visible to Telegram.
+**Your commands reach Telegram's servers.** Recognisable credentials are
+removed first — AWS, GitHub, OpenAI, Slack and Google keys, JWTs, private key
+blocks, `PASSWORD=…` style assignments, `--token` flags and `Bearer` headers —
+and the message says how many were hidden. `BRIDGE_REDACT=0` turns it off;
+`BRIDGE_REDACT_EXTRA` points at a file of extra patterns, one regex per line.
+
+**This is best effort, not a guarantee.** A secret in a shape the patterns do
+not know passes straight through. Everything else in a command — hostnames,
+paths, table names, what you are doing and when — is transmitted as it is.
+Assume Telegram can see anything Claude Code asks permission for, and treat
+redaction as a reduction in accidental leakage rather than a control you rely
+on.
 
 ## What is enforced today
 
@@ -193,6 +200,7 @@ Beyond that:
 |---|---|
 | Binds `127.0.0.1` unless you change it | `BRIDGE_BIND` |
 | Refuses to start on a weak listener: non-loopback with no token, non-loopback with no TLS, or a token under 32 characters | `preflight()` |
+| Recognisable credentials removed from tool inputs before they leave the host, with a count shown in the message; redaction runs **before** the 600-character truncation so a key cannot survive by straddling the cut | `redact.py`, `summarize_counted()` |
 | Bearer token compared with `hmac.compare_digest` | `authorized()` |
 | TLS 1.2 minimum when a cert is configured | `preflight()` |
 | Only `TG_CHAT_ID` is trusted; other chats are dropped | `_on_update` |
@@ -211,6 +219,8 @@ Stated plainly, so you are not surprised:
 - **`bypassPermissions` mode.** No `PermissionRequest` hook fires at all, so
   the bridge never sees the tool call. It is not a safety net you can rely on
   independently.
+- **A secret in an unfamiliar shape.** Redaction knows common credential
+  formats; it cannot know yours. Add patterns with `BRIDGE_REDACT_EXTRA`.
 - **A convincing-looking command.** You are approving a one-line summary,
   truncated at 600 characters, with no surrounding context about why Claude
   wants it. Approving on a phone is approving with less information than
