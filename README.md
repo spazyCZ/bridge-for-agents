@@ -97,6 +97,27 @@ So: **one bot per bridge process, one group for everything.** You never need a
 bot per session, and a second group only buys separation that topics already
 give you.
 
+```mermaid
+flowchart TD
+    S{"How many machines<br/>run Claude Code?"}
+
+    S -->|"one"| ONE["1 bot, 1 group<br/>bridge on 127.0.0.1"]
+    ONE --> ONEOK["No token, no TLS, no certificates<br/>Nothing is exposed"]
+
+    S -->|"several"| M{"Must one process<br/>be managed centrally?"}
+
+    M -->|"no - recommended"| EACH["A bridge per machine<br/>each with its own bot<br/>all posting into one group"]
+    EACH --> EACHOK["Every listener stays on loopback<br/>No shared secret, no certificates<br/>Cost: one /newbot per machine"]
+
+    M -->|"yes"| SHARED["One bridge on the LAN<br/>other hosts POST to it"]
+    SHARED --> SHAREDREQ["BRIDGE_TOKEN and TLS both required<br/>CA certificate on every host<br/>Port firewalled to your hosts"]
+
+    classDef good fill:#0f2e1a,stroke:#22c55e,color:#e8f5ec
+    classDef warn fill:#3d2f0a,stroke:#eab308,color:#fdf6e3
+    class ONEOK,EACHOK good
+    class SHAREDREQ warn
+```
+
 ### One machine — the default
 
 ```

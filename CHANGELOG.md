@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TG_API_BASE` to override the Bot API root, so the bridge can be driven by a
   stand-in Telegram — see the `bridge-for-agent-test` project.
 
+- Mermaid diagrams, rendered by GitHub: connection directions, one approval
+  end to end, the fail-safe decision tree, and a topology decision tree.
 - `SECURITY-MODEL.md`: who starts each connection, what the chat can and
   cannot make the host do, who is trusted with what, the fail-safe guarantee,
   and a pre-deployment checklist.

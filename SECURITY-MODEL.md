@@ -11,6 +11,33 @@ answer does reach Claude's context, and anyone in the chat can write it.**
 
 This is the question that decides most of the rest.
 
+```mermaid
+flowchart LR
+    subgraph host["Your machine"]
+        direction TB
+        CC["Claude Code<br/>session"]
+        BR["bridge<br/>127.0.0.1:8765"]
+    end
+
+    subgraph cloud["Internet"]
+        TG["api.telegram.org:443"]
+    end
+
+    PH["Your phone"]
+
+    CC -->|"1. POST /hook<br/>Claude Code dials, on loopback"| BR
+    BR -->|"2. sendMessage<br/>bridge dials out"| TG
+    BR -->|"3. getUpdates, held open<br/>bridge dials out"| TG
+    TG -.->|"push"| PH
+    PH -.->|"button press"| TG
+    TG -. "never dials in" .-x BR
+
+    classDef safe fill:#0f2e1a,stroke:#22c55e,color:#e8f5ec
+    classDef out fill:#1e2a45,stroke:#60a5fa,color:#e8eefc
+    class CC,BR safe
+    class TG,PH out
+```
+
 | Connection | Who starts it | Direction |
 |---|---|---|
 | Claude Code → bridge | **Claude Code**, when a hook fires | inbound to the bridge, `127.0.0.1` by default |
@@ -57,6 +84,32 @@ What you can send back, and nothing else:
 
 An approval is scoped to the single tool call that asked. There is no "always
 allow", no rule that persists, no way to widen a permission.
+
+### One approval, end to end
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CC as Claude Code
+    participant BR as bridge
+    participant TG as Telegram
+    participant YOU as You, on your phone
+
+    BR->>TG: getUpdates, long poll, always open
+    CC->>BR: POST /hook - PermissionRequest
+    Note over BR: record the event<br/>mint a random request id
+    BR->>TG: sendMessage with inline buttons
+    TG->>YOU: push notification
+    YOU->>TG: tap Allow
+    TG-->>BR: callback_query answers the open poll
+    Note over BR: match the request id<br/>resolve that one pending future
+    BR-->>CC: decision behavior allow
+    Note over CC: scoped to this one tool call
+```
+
+Note step 1: the poll is already open *before* the hook arrives. Your button
+press does not reach a listening server — it answers a request the bridge had
+outstanding.
 
 ### But your text does reach Claude's context
 
@@ -112,6 +165,27 @@ then, assume anything Claude Code asks permission for is visible to Telegram.
 timeout, a Telegram outage, a malformed event — all of them fall back to the
 terminal. **No error path can produce an approval.** The single line that emits
 `behavior: allow` is reachable only from a button press carrying that value.
+
+```mermaid
+flowchart TD
+    H["hook arrives"] --> Q{"asked on the chat"}
+
+    Q -->|"Allow pressed"| A["behavior: allow<br/>this one tool call"]
+    Q -->|"Deny pressed"| D["behavior: deny"]
+    Q -->|"free text reply"| T["behavior: deny<br/>your text as the reason"]
+    Q -->|"anything else"| F["Answer in terminal pressed<br/>no answer before the timeout<br/>handler raised an exception<br/>Telegram unreachable"]
+
+    F --> E["empty response"]
+    E --> P["normal terminal prompt<br/>nothing was approved"]
+
+    classDef ok fill:#0f2e1a,stroke:#22c55e,color:#e8f5ec
+    classDef no fill:#3b1414,stroke:#ef4444,color:#fdeaea
+    classDef safe fill:#1e2a45,stroke:#60a5fa,color:#e8eefc
+    class A ok
+    class D,T no
+    class F,E,P safe
+```
+
 
 Beyond that:
 
