@@ -7,6 +7,30 @@ considered and why.
 Tiers are about **value per unit of effort**, not difficulty. Anything in
 Tier 1 is small and changes the product materially.
 
+## At a glance
+
+Effort is rough: **S** is an afternoon, **M** a day or two, **L** a design
+question before any code.
+
+| Tier | What | Why it matters | Effort |
+|---|---|---|---|
+| 1 | [Approver allowlist](#approver-identity-tg_allowed_users) | Presses are checked against the *chat*, never the person — every group member can approve, and steer | **S** |
+| 1 | [Redact secrets](#redact-secrets-before-they-leave-the-host) | `tool_input` goes to Telegram verbatim, API keys included | **S** |
+| 1 | [Auto-allow rules](#auto-allow-rules) | Thirty file reads means thirty notifications; the main reason to give up on it | **M** |
+| 2 | [Context on the prompt](#context-why-is-claude-asking) | You approve a one-line command with no idea why it was asked | **S–M** |
+| 2 | [Recover a timed-out prompt](#recovering-a-timed-out-prompt) | After the timeout the call waits on a terminal nobody is watching | **M** |
+| 2 | [Coalesce bursts](#coalescing-bursts) | Five prompts in three seconds should be one message | **M** |
+| 3 | [Send a new prompt](#tier-3--sending-a-new-prompt-into-a-session) | Turns the bridge from reactive to interactive — and changes the security model | **L** |
+| 4 | systemd unit and Dockerfile | Answers "how do I keep this running" | **S** |
+| 4 | Metrics on the admin page | `duration_ms` and outcomes are already recorded; shows whether rules are tuned | **S** |
+| 4 | Webhook mode | Lifts one-poller-per-token, but needs public inbound | **L** |
+| 5 | Edit the message instead of replying | Halves chat volume | **S** |
+| 5 | `/sessions`, `/mute`, `/deny_all` | A panic button, and a way to look around | **S** |
+| 5 | Silence non-decisions | Ring for permissions, not for `Stop` | **S** |
+| 5 | `multiSelect` questions | Currently answered single-choice | **M** |
+| 5 | Show more than 600 characters | You approve a truncated command | **S** |
+| 5 | Approve-with-edit | Free text can only deny today | **M** |
+
 ## Tier 1 — real gaps, cheap to close
 
 ### Approver identity (`TG_ALLOWED_USERS`)
