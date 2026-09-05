@@ -27,6 +27,8 @@ def bridge(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(bridge_module, "TLS_KEY", "")
     monkeypatch.setattr(bridge_module, "INSECURE", False)
     monkeypatch.setattr(bridge_module, "SCOPE", "session")
+    monkeypatch.setattr(bridge_module, "ADMIN", False)
+    monkeypatch.setattr(bridge_module, "ADMIN_TOKEN", "")
     return bridge_module
 
 

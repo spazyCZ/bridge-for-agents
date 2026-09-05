@@ -29,6 +29,13 @@ The daemon refuses to start on a weak configuration: a non-loopback bind with
 no token, a non-loopback bind with no TLS, or a token under 32 characters.
 `BRIDGE_INSECURE=1` overrides this for lab use only.
 
+The admin page at `/admin` is a second surface. It is **off unless
+`BRIDGE_ADMIN=1`**, read-only (no approval path in the browser), and guarded by
+`BRIDGE_ADMIN_TOKEN` — falling back to `BRIDGE_TOKEN` — with the same loopback
+allowance and the same preflight refusal off loopback. It exposes tool inputs
+and session history, so treat its token as equally sensitive. The history it
+serves is process memory only and is never written to disk.
+
 On the chat side, only messages from `TG_CHAT_ID` are trusted; every request
 carries a random id embedded in its buttons, so an answer resolves exactly the
 request it belongs to.
@@ -47,5 +54,7 @@ proxy in front and keep the bridge on loopback if you need more.
 - Rotate `BRIDGE_TOKEN` by restarting the bridge and updating each host. There
   is no rotation grace period, so rotate when nothing is mid-approval.
 - `pki/`, `*.key` and `*.crt` are gitignored. Keep `ca.key` offline.
+- Leave `BRIDGE_ADMIN` off where you do not need it, and give the admin page
+  its own token rather than reusing `BRIDGE_TOKEN` when you can.
 - Deny is the safe answer when a prompt surprises you on your phone — it means
   something reached the bridge that you did not start.

@@ -38,6 +38,8 @@ Claude Code ◀──JSON decision── bridge ◀──button/reply── you
 | Turn finished | last assistant message | – |
 | Session ended | closes the topic | – |
 
+Everything above is also visible in the [web admin page](#web-admin-page).
+
 - **Free text**: reply to the bot message. On a question it becomes the answer;
   on a permission it's a *deny with your text as the reason* (Claude reads it).
 - **Fallback**: no answer within `BRIDGE_TIMEOUT` (540 s) or "Answer in terminal"
@@ -83,6 +85,60 @@ ability to tell sessions apart.
 `getUpdates` is exclusive — two bridge instances on the same token fight over
 updates (409 Conflict). Run **one** bridge for all your Claude Code hosts, or
 give each host its own bot and its own group.
+
+## Web admin page
+
+A read-only dashboard at `/admin` on the same listener as the hook endpoint:
+what Claude Code is waiting for **right now**, and what it has asked for
+recently.
+
+```bash
+export BRIDGE_ADMIN=1
+export BRIDGE_ADMIN_TOKEN=$(openssl rand -hex 32)   # required off loopback
+bridge-for-agents
+# open http://127.0.0.1:8765/admin?token=<BRIDGE_ADMIN_TOKEN>
+```
+
+- **Waiting now** — every outstanding prompt with its options and a countdown
+  to `BRIDGE_TIMEOUT`, so you can see what is blocking a session before you
+  reach for your phone.
+- **Sessions** — one row per session or project: working directory, short
+  session id, event counts, live/ended, last activity. Click one to filter.
+- **Activity** — the event timeline: time, hook event, tool, the command or
+  file path, the outcome (`allow`, `deny`, `deny (reason)`, `answered`,
+  `terminal`, `timeout`) and how long the answer took.
+
+The page polls `/admin/api/state` every two seconds; the same JSON is there if
+you would rather script against it.
+
+**It is read-only by design.** There is no way to approve or deny from the
+browser — decisions stay in the chat, where the approval path is already
+authenticated. The page only reports.
+
+### History is in memory only
+
+Sessions and events live in the daemon's process and are never written to
+disk, so **restarting the bridge starts the history over**. That is deliberate:
+the events carry your commands, file paths and prompts, and keeping them out of
+a file keeps the bridge host's blast radius small. `BRIDGE_ADMIN_HISTORY`
+(default 200) caps the events kept per session; at most 50 sessions are kept,
+the least recently active dropped first. `src/bridge_for_agents/store.py` is
+the single place to add persistence if you ever want it.
+
+Note this is separate from `BRIDGE_STATE`, which persists only the map from
+session to Telegram topic id — never any event content.
+
+### Access
+
+`BRIDGE_ADMIN_TOKEN` guards the page, falling back to `BRIDGE_TOKEN` when
+unset. Pass it once as `?token=…`; it is then kept in an `HttpOnly`,
+`SameSite=Strict` cookie (marked `Secure` under TLS) so the secret leaves the
+URL bar. A `Bearer` header works too, for scripts.
+
+Like the hook endpoint, a loopback bind with no token configured is left open,
+and the startup preflight refuses to serve the page on a non-loopback bind
+without a token — it shows tool inputs and session history to anyone who can
+reach it.
 
 ## Securing the Claude Code ↔ bridge channel
 
@@ -168,6 +224,8 @@ does require a tunnel (`cloudflared` / ngrok).
 ```
 src/bridge_for_agents/
   bridge.py            the daemon: channels, hook handlers, HTTP endpoint
+  store.py             in-memory session/event history behind the admin page
+  admin.py             read-only /admin routes and page
   cli.py               console entry point (bridge-for-agents)
 examples/
   hooks.settings.json  Claude Code hook config to merge into your settings

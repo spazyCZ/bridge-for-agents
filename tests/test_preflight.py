@@ -45,3 +45,32 @@ def test_tls_context_is_built_from_cert_pair(bridge, monkeypatch, tls_cert_pair)
     ctx = bridge.preflight()
     assert ctx is not None
     assert ctx.minimum_version.name == "TLSv1_2"
+
+
+def test_admin_on_public_bind_without_admin_token_aborts(bridge, monkeypatch, tls_cert_pair):
+    """The admin page shows tool inputs — it must not be open on the network."""
+    cert, key = tls_cert_pair
+    monkeypatch.setattr(bridge, "BIND", "0.0.0.0")
+    monkeypatch.setattr(bridge, "TOKEN", TOKEN_32)
+    monkeypatch.setattr(bridge, "TLS_CERT", str(cert))
+    monkeypatch.setattr(bridge, "TLS_KEY", str(key))
+    monkeypatch.setattr(bridge, "ADMIN", True)
+    monkeypatch.setattr(bridge, "ADMIN_TOKEN", "")
+    with pytest.raises(SystemExit):
+        bridge.preflight()
+
+
+def test_admin_on_public_bind_with_admin_token_is_allowed(bridge, monkeypatch, tls_cert_pair):
+    cert, key = tls_cert_pair
+    monkeypatch.setattr(bridge, "BIND", "0.0.0.0")
+    monkeypatch.setattr(bridge, "TOKEN", TOKEN_32)
+    monkeypatch.setattr(bridge, "TLS_CERT", str(cert))
+    monkeypatch.setattr(bridge, "TLS_KEY", str(key))
+    monkeypatch.setattr(bridge, "ADMIN", True)
+    monkeypatch.setattr(bridge, "ADMIN_TOKEN", TOKEN_32)
+    assert bridge.preflight() is not None
+
+
+def test_admin_on_loopback_without_a_token_is_allowed(bridge, monkeypatch):
+    monkeypatch.setattr(bridge, "ADMIN", True)
+    assert bridge.preflight() is None

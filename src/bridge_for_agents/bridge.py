@@ -41,6 +41,13 @@ Env:
   BRIDGE_PORT    default 8765
   BRIDGE_TIMEOUT seconds to wait for a phone answer, default 540
                  (must stay below the hook `timeout` in settings.json)
+  BRIDGE_ADMIN   set to 1 to serve the read-only web admin page at /admin
+  BRIDGE_ADMIN_TOKEN
+                 bearer token for /admin; falls back to BRIDGE_TOKEN. Mandatory
+                 when the admin page is enabled on a non-loopback listener
+  BRIDGE_ADMIN_HISTORY
+                 events kept in memory per session, default 200. History is
+                 never written to disk and is lost on restart
 """
 from __future__ import annotations
 
@@ -58,6 +65,8 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout, web
 
+from . import admin, store
+
 log = logging.getLogger("bridge")
 
 TG_BOT_TOKEN = os.environ["TG_BOT_TOKEN"]
@@ -72,8 +81,14 @@ TLS_KEY = os.environ.get("BRIDGE_TLS_KEY", "")
 INSECURE = os.environ.get("BRIDGE_INSECURE") == "1"
 PORT = int(os.environ.get("BRIDGE_PORT", "8765"))
 WAIT = int(os.environ.get("BRIDGE_TIMEOUT", "540"))
+ADMIN = os.environ.get("BRIDGE_ADMIN") == "1"
+ADMIN_TOKEN = os.environ.get("BRIDGE_ADMIN_TOKEN", "") or TOKEN
+HISTORY = int(os.environ.get("BRIDGE_ADMIN_HISTORY", "200"))
 
 Answer = tuple[str, str]  # ("button", value) | ("text", value)
+
+# Everything the admin page shows. In memory only — see store.py.
+STORE = store.Store(max_events=HISTORY)
 
 
 # --------------------------------------------------------------------------
@@ -214,6 +229,7 @@ class TelegramChannel(Channel):
         rid = uuid.uuid4().hex[:8]
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         self.pending[rid] = fut
+        STORE.open_prompt(rid, text, [lbl for lbl, _ in options], timeout)
         keyboard = {"inline_keyboard": [[{"text": lbl, "callback_data": f"{rid}:{val}"}]
                                         for lbl, val in options]}
         msg = await self.send(text + "\n\n<i>Tap a button or reply to this message.</i>",
@@ -228,6 +244,7 @@ class TelegramChannel(Channel):
             return None
         finally:
             self.pending.pop(rid, None)
+            STORE.close_prompt(rid)
             if msg:
                 self.msg_to_rid.pop(msg["message_id"], None)
 
@@ -319,6 +336,38 @@ def summarize_tool(tool: str, inp: dict) -> str:
     return s if len(s) < 600 else s[:600] + "…"
 
 
+def describe(ev: dict) -> str:
+    """One line for the admin feed: what this event is actually about."""
+    name = ev.get("hook_event_name")
+    if name == "Stop":
+        return (ev.get("last_assistant_message") or "").strip()[:300]
+    if name == "Notification":
+        return ev.get("message", "")
+    if name == "SessionEnd":
+        return ev.get("reason", "")
+    inp = ev.get("tool_input", {}) or {}
+    if ev.get("tool_name") == "AskUserQuestion":
+        return " · ".join(q.get("question", "") for q in inp.get("questions", []))[:300]
+    return summarize_tool(ev.get("tool_name", ""), inp)
+
+
+def outcome_of(name: str | None, out: dict) -> str:
+    """How the hook was answered, as shown in the admin feed."""
+    spec = out.get("hookSpecificOutput") or {}
+    if name == "PermissionRequest":
+        decision = spec.get("decision") or {}
+        behavior = decision.get("behavior")
+        if behavior == "deny" and decision.get("message"):
+            return "deny (reason)"
+        return behavior or "terminal"
+    if name == "PreToolUse":
+        answers = (spec.get("updatedInput") or {}).get("answers")
+        return f"answered ({len(answers)})" if answers else "terminal"
+    if name in ("Stop", "Notification", "SessionEnd"):
+        return "sent"
+    return "passthrough"
+
+
 async def on_permission(chan: Channel, ev: dict, thread: Any) -> dict:
     tool = ev.get("tool_name", "?")
     if tool == "AskUserQuestion":  # handled on PreToolUse; let the CLI proceed
@@ -400,11 +449,14 @@ async def hook_endpoint(request: web.Request) -> web.Response:
     name = ev.get("hook_event_name")
     log.info("hook %s tool=%s session=%s", name, ev.get("tool_name"),
              (ev.get("session_id") or "")[:8])
+    store.current_event.set(ev)          # so Channel.ask can attribute prompts
+    rec = STORE.record(ev, describe(ev))
     try:
         if name == "SessionEnd":
             out = await on_session_end(chan, ev, None)
         else:
             thread = await chan.thread_for(ev)
+            STORE.session(ev).topic_id = thread
             if name == "PermissionRequest":
                 out = await on_permission(chan, ev, thread)
             elif name == "PreToolUse" and ev.get("tool_name") == "AskUserQuestion":
@@ -418,6 +470,7 @@ async def hook_endpoint(request: web.Request) -> web.Response:
     except Exception:
         log.exception("handler failed; falling back to terminal")
         out = {}
+    STORE.complete(rec, outcome_of(name, out))
     return web.json_response(out)
 
 
@@ -438,6 +491,10 @@ def preflight() -> ssl.SSLContext | None:
                         "the bearer token would cross the network in cleartext")
     if TOKEN and len(TOKEN) < 32:
         problems.append("BRIDGE_TOKEN is shorter than 32 characters")
+    if ADMIN and not local and not ADMIN_TOKEN:
+        problems.append("BRIDGE_ADMIN=1 on a non-loopback bind with no "
+                        "BRIDGE_ADMIN_TOKEN — the admin page shows tool inputs "
+                        "and session history to anyone who can reach the port")
     if problems:
         for p in problems:
             log.error("%s", p)
@@ -464,11 +521,17 @@ async def main() -> None:
     app["chan"] = chan
     app.router.add_post("/hook", hook_endpoint)
     app.router.add_get("/health", health)
+    if ADMIN:
+        admin.attach(app, STORE, ADMIN_TOKEN)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, BIND, PORT, ssl_context=ssl_ctx).start()
+    scheme = "https" if ssl_ctx else "http"
     log.info("listening on %s://%s:%d/hook (auth: %s)",
-             "https" if ssl_ctx else "http", BIND, PORT, "on" if TOKEN else "OFF")
+             scheme, BIND, PORT, "on" if TOKEN else "OFF")
+    if ADMIN:
+        log.info("admin page on %s://%s:%d/admin (auth: %s, history in memory only)",
+                 scheme, BIND, PORT, "on" if ADMIN_TOKEN else "OFF")
     await chan.send("🟢 claude-bridge online")
     try:
         await asyncio.Event().wait()

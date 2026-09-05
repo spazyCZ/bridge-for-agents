@@ -34,6 +34,8 @@ match the surrounding style and keep lines within 100 columns.
 | Path | What lives there |
 |---|---|
 | `src/bridge_for_agents/bridge.py` | the daemon: channels, hook handlers, HTTP endpoint |
+| `src/bridge_for_agents/store.py` | in-memory session and event history (no persistence) |
+| `src/bridge_for_agents/admin.py` | read-only `/admin` routes and the page |
 | `src/bridge_for_agents/cli.py` | console entry point |
 | `examples/hooks.settings.json` | Claude Code hook configuration to merge into your settings |
 | `scripts/make-certs.sh` | local CA, server cert and shared secret |

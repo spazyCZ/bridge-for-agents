@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Read-only web admin page at `/admin`: outstanding prompts with a countdown,
+  a session list, and the event timeline with outcomes and timings. Enabled
+  with `BRIDGE_ADMIN=1`, guarded by `BRIDGE_ADMIN_TOKEN` (falls back to
+  `BRIDGE_TOKEN`), served as JSON at `/admin/api/state`.
+- `store.py`: bounded in-memory session and event history. Nothing is written
+  to disk, so history is lost on restart; `BRIDGE_ADMIN_HISTORY` (default 200)
+  caps events per session.
+- The startup preflight now also refuses to serve the admin page on a
+  non-loopback bind without a token.
+
 ## [0.1.0] - 2026-09-05
 
 Initial release — MVP.
