@@ -14,6 +14,11 @@ This project is pre-1.0. Only the latest commit on `main` receives fixes.
 
 ## Threat model
 
+A fuller, user-facing version of this — who initiates each connection, what the
+chat can and cannot do, and a checklist to run before deploying — is in
+[SECURITY-MODEL.md](SECURITY-MODEL.md).
+
+
 The hook endpoint is the sensitive surface: **whatever can POST to it can
 approve your tool calls.** Two controls guard it, both produced by
 `scripts/make-certs.sh`:

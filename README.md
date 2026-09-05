@@ -278,10 +278,26 @@ does require a tunnel (`cloudflared` / ngrok).
 
 ## Security
 
-- Daemon binds `127.0.0.1` by default; a non-loopback `BRIDGE_BIND` requires a
-  token and TLS (see above). Only `TG_CHAT_ID` is trusted; other chats are ignored.
-- Keep the bot token out of settings files — it lives only in the daemon's env.
-- Consider `Deny` as the safe default if you leave `bypassPermissions` off.
+Full detail — who starts each connection, what the chat can and cannot make
+your machine do, who is trusted, and a pre-flight checklist — is in
+**[SECURITY-MODEL.md](SECURITY-MODEL.md)**. The three facts that matter most:
+
+- **Nothing on the internet can connect to your machine.** Both directions to
+  Telegram are outbound; receiving an answer is the bridge holding a
+  `getUpdates` request open, not Telegram dialling in. The only listener is the
+  hook endpoint, on `127.0.0.1` unless you change it.
+- **The chat cannot start anything.** It can only answer a hook Claude Code
+  already raised, and an approval covers that one tool call. But a free-text
+  reply becomes a deny reason or a question's answer, so it *does* reach
+  Claude's context — the chat can steer a session even though it cannot command
+  one.
+- **The bridge fails safe.** Timeouts, exceptions and Telegram outages all
+  return `{}`, which means "prompt in the terminal". No error path can produce
+  an approval.
+
+Everyone in the chat holds your approval authority — the bridge checks the chat
+a press came from, not the person. Keep it to yourself and the bot; see
+[the roadmap](ROADMAP.md#approver-identity-tg_allowed_users).
 
 ## Project layout
 
