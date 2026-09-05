@@ -1,0 +1,30 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-09-05
+
+Initial release — MVP.
+
+### Added
+
+- Relay of Claude Code hook events to Telegram and the decision back to Claude
+  Code: `PermissionRequest` (Allow / Deny / Terminal), `PreToolUse` for
+  `AskUserQuestion` (one button per option), `Notification` on `idle_prompt`,
+  `Stop`, and `SessionEnd`.
+- Free-text replies: an answer on a question, a deny-with-reason on a permission.
+- Session separation through Telegram forum topics, with `BRIDGE_SCOPE` of
+  `session`, `project` or `flat`, and a persisted topic map in `BRIDGE_STATE`.
+- Bearer-token authentication and TLS on the hook endpoint, with a startup
+  preflight that refuses to expose a weak listener.
+- `scripts/make-certs.sh` to generate a local CA, a server certificate and the
+  shared secret.
+- `Channel` abstraction as the extension point for further chat transports.
+
+[Unreleased]: https://github.com/spazyCZ/bridge-for-agents/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/spazyCZ/bridge-for-agents/releases/tag/v0.1.0

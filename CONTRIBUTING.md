@@ -1,0 +1,62 @@
+# Contributing
+
+Thanks for taking the time to help. This is a small project — issues and pull
+requests are both welcome, and asking before building something large saves
+everyone effort.
+
+## Development setup
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+Run the daemon from the checkout:
+
+```bash
+export TG_BOT_TOKEN=123:abc TG_CHAT_ID=-1001234567890
+python -m bridge_for_agents          # or: bridge-for-agents
+```
+
+## Checks
+
+```bash
+ruff check .
+pytest
+```
+
+CI runs both, plus a package build, on Python 3.11–3.13. Please make them pass
+before opening a pull request. Formatting is not enforced by a formatter —
+match the surrounding style and keep lines within 100 columns.
+
+## Layout
+
+| Path | What lives there |
+|---|---|
+| `src/bridge_for_agents/bridge.py` | the daemon: channels, hook handlers, HTTP endpoint |
+| `src/bridge_for_agents/cli.py` | console entry point |
+| `examples/hooks.settings.json` | Claude Code hook configuration to merge into your settings |
+| `scripts/make-certs.sh` | local CA, server cert and shared secret |
+| `tests/` | pytest suite |
+
+`bridge.py` reads its configuration from the environment **at import time**.
+Tests that import it must set `TG_BOT_TOKEN` and `TG_CHAT_ID` first — see
+`tests/conftest.py`.
+
+## Pull requests
+
+- One logical change per PR; keep the diff focused.
+- Update `README.md` when you change configuration or behaviour.
+- Add a line to the `Unreleased` section of `CHANGELOG.md`.
+- New environment variables belong in three places: the module docstring in
+  `bridge.py`, the README env table, and the changelog.
+
+## Adding a channel
+
+`Channel` in `bridge.py` is the extension point — implement `send` and `ask`
+(and `start` / `stop` if your transport needs them). See the WhatsApp/Twilio
+sketch at the end of the README for the shape of a second channel.
+
+## Reporting security issues
+
+Please do not open a public issue for a vulnerability. See [SECURITY.md](SECURITY.md).

@@ -1,0 +1,67 @@
+name: Bug report
+description: Something behaves differently than documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please redact `TG_BOT_TOKEN`, `BRIDGE_TOKEN` and chat ids from anything you paste.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Configure ... 
+        2. Trigger a permission prompt with ...
+        3. On the phone ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: event
+    attributes:
+      label: Which hook event
+      options:
+        - PermissionRequest
+        - PreToolUse (AskUserQuestion)
+        - Notification (idle_prompt)
+        - Stop
+        - SessionEnd
+        - Not event-specific / unsure
+    validations:
+      required: true
+
+  - type: input
+    id: scope
+    attributes:
+      label: BRIDGE_SCOPE
+      placeholder: session | project | flat
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.12.4"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Bridge logs
+      description: Output around the failure. Secrets redacted.
+      render: text

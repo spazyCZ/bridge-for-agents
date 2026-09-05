@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Secrets and generated material — never commit these
+pki/
+*.key
+*.crt
+*.csr
+*.srl
+.env
+.env.*
+topics.json
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp

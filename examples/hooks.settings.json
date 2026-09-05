@@ -1,0 +1,93 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://bridge.lan:8765/hook",
+            "timeout": 600,
+            "statusMessage": "Waiting for Telegram approval\u2026",
+            "headers": {
+              "Authorization": "Bearer ${BRIDGE_TOKEN}"
+            },
+            "allowedEnvVars": [
+              "BRIDGE_TOKEN"
+            ]
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://bridge.lan:8765/hook",
+            "timeout": 600,
+            "statusMessage": "Question sent to Telegram\u2026",
+            "headers": {
+              "Authorization": "Bearer ${BRIDGE_TOKEN}"
+            },
+            "allowedEnvVars": [
+              "BRIDGE_TOKEN"
+            ]
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://bridge.lan:8765/hook",
+            "timeout": 10,
+            "headers": {
+              "Authorization": "Bearer ${BRIDGE_TOKEN}"
+            },
+            "allowedEnvVars": [
+              "BRIDGE_TOKEN"
+            ]
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://bridge.lan:8765/hook",
+            "timeout": 10,
+            "headers": {
+              "Authorization": "Bearer ${BRIDGE_TOKEN}"
+            },
+            "allowedEnvVars": [
+              "BRIDGE_TOKEN"
+            ]
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://bridge.lan:8765/hook",
+            "timeout": 10,
+            "headers": {
+              "Authorization": "Bearer ${BRIDGE_TOKEN}"
+            },
+            "allowedEnvVars": [
+              "BRIDGE_TOKEN"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
