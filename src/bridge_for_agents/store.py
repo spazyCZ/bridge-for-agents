@@ -22,6 +22,11 @@ from typing import Any
 # attribute a prompt to its session without changing the Channel API.
 current_event: ContextVar[dict | None] = ContextVar("current_event", default=None)
 
+# Set by a handler when the reason it gave up is worth distinguishing: a prompt
+# nobody answered reads very differently from one deliberately sent back to the
+# terminal, and both return {} to Claude Code.
+outcome_hint: ContextVar[str | None] = ContextVar("outcome_hint", default=None)
+
 _TAG = re.compile(r"<[^>]+>")
 
 

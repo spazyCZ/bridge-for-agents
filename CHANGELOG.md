@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   caps events per session.
 - The startup preflight now also refuses to serve the admin page on a
   non-loopback bind without a token.
+- `TG_API_BASE` to override the Bot API root, so the bridge can be driven by a
+  stand-in Telegram — see the `bridge-for-agent-test` project.
+
+### Changed
+
+- A prompt nobody answered is now reported as `timeout` on the admin page,
+  distinct from `terminal` when *Answer in terminal* was chosen. Both still
+  return `{}` to Claude Code, so behaviour is unchanged.
 
 ## [0.1.0] - 2026-09-05
 

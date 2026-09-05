@@ -22,6 +22,8 @@ with inline tags if the chat is not a forum.
 Env:
   TG_BOT_TOKEN   bot token from @BotFather
   TG_CHAT_ID     numeric id of the supergroup / chat (only this chat is trusted)
+  TG_API_BASE    Bot API root, default https://api.telegram.org. Point it at a
+                 stand-in server to exercise the bridge without a real bot
   BRIDGE_SCOPE   session | project | flat    (default: session)
                  session = one topic per Claude Code session
                  project = one topic per working directory, sessions share it
@@ -71,6 +73,7 @@ log = logging.getLogger("bridge")
 
 TG_BOT_TOKEN = os.environ["TG_BOT_TOKEN"]
 TG_CHAT_ID = int(os.environ["TG_CHAT_ID"])
+TG_API_BASE = os.environ.get("TG_API_BASE", "https://api.telegram.org").rstrip("/")
 SCOPE = os.environ.get("BRIDGE_SCOPE", "session")
 STATE = Path(os.environ.get("BRIDGE_STATE",
              Path.home() / ".local/state/claude-bridge/topics.json"))
@@ -116,7 +119,7 @@ class Channel:
 
 class TelegramChannel(Channel):
     def __init__(self, token: str, chat_id: int):
-        self.api = f"https://api.telegram.org/bot{token}"
+        self.api = f"{TG_API_BASE}/bot{token}"
         self.chat_id = chat_id
         self.pending: dict[str, asyncio.Future] = {}
         self.msg_to_rid: dict[int, str] = {}
@@ -351,7 +354,7 @@ def describe(ev: dict) -> str:
     return summarize_tool(ev.get("tool_name", ""), inp)
 
 
-def outcome_of(name: str | None, out: dict) -> str:
+def outcome_of(name: str | None, out: dict, hint: str | None = None) -> str:
     """How the hook was answered, as shown in the admin feed."""
     spec = out.get("hookSpecificOutput") or {}
     if name == "PermissionRequest":
@@ -359,10 +362,10 @@ def outcome_of(name: str | None, out: dict) -> str:
         behavior = decision.get("behavior")
         if behavior == "deny" and decision.get("message"):
             return "deny (reason)"
-        return behavior or "terminal"
+        return behavior or hint or "terminal"
     if name == "PreToolUse":
         answers = (spec.get("updatedInput") or {}).get("answers")
-        return f"answered ({len(answers)})" if answers else "terminal"
+        return f"answered ({len(answers)})" if answers else (hint or "terminal")
     if name in ("Stop", "Notification", "SessionEnd"):
         return "sent"
     return "passthrough"
@@ -377,6 +380,7 @@ async def on_permission(chan: Channel, ev: dict, thread: Any) -> dict:
     ans = await chan.ask(text, [("✅ Allow", "allow"), ("❌ Deny", "deny"),
                                 ("💻 Answer in terminal", "ask")], WAIT, thread)
     if ans is None or ans[1] == "ask":
+        store.outcome_hint.set("timeout" if ans is None else "terminal")
         return {}  # no decision → normal terminal prompt
     kind, val = ans
     if kind == "text":  # free text on a permission = deny with a reason for Claude
@@ -400,6 +404,7 @@ async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
         buttons.append(("💻 Answer in terminal", "ask"))
         ans = await chan.ask("\n".join(lines), buttons, WAIT, thread)
         if ans is None or ans[1] == "ask":
+            store.outcome_hint.set("timeout" if ans is None else "terminal")
             return {}  # fall back to the CLI's own picker
         kind, val = ans
         if kind == "button":
@@ -450,6 +455,7 @@ async def hook_endpoint(request: web.Request) -> web.Response:
     log.info("hook %s tool=%s session=%s", name, ev.get("tool_name"),
              (ev.get("session_id") or "")[:8])
     store.current_event.set(ev)          # so Channel.ask can attribute prompts
+    store.outcome_hint.set(None)
     rec = STORE.record(ev, describe(ev))
     try:
         if name == "SessionEnd":
@@ -470,7 +476,7 @@ async def hook_endpoint(request: web.Request) -> web.Response:
     except Exception:
         log.exception("handler failed; falling back to terminal")
         out = {}
-    STORE.complete(rec, outcome_of(name, out))
+    STORE.complete(rec, outcome_of(name, out, store.outcome_hint.get()))
     return web.json_response(out)
 
 
@@ -515,6 +521,8 @@ def preflight() -> ssl.SSLContext | None:
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     ssl_ctx = preflight()
+    if TG_API_BASE != "https://api.telegram.org":
+        log.warning("using non-default Bot API base %s", TG_API_BASE)
     chan = TelegramChannel(TG_BOT_TOKEN, TG_CHAT_ID)
     await chan.start()
     app = web.Application()

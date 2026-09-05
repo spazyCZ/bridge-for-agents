@@ -246,6 +246,21 @@ pytest
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
+### Trying it without a bot
+
+`TG_API_BASE` overrides the Bot API root (default `https://api.telegram.org`),
+so the bridge can be pointed at a stand-in server. The sibling
+[bridge-for-agent-test](../bridge-for-agent-test) project is exactly that: a
+fake Telegram with a browser "phone" whose buttons feed real `callback_query`
+updates back through `getUpdates`, sample payloads for every hook event, a
+ready-made `.claude/settings.json`, and an end-to-end check.
+
+```bash
+cd ../bridge-for-agent-test
+./bin/up.sh        # fake phone + bridge
+./bin/smoke.py     # automated end-to-end check
+```
+
 ## Known gaps / next steps
 
 - `multiSelect` questions are answered single-choice (MVP).
