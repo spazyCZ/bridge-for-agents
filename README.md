@@ -80,35 +80,71 @@ every request carries a random id embedded in its buttons, so an answer resolves
 exactly the request it belongs to even in flat mode. Topics are about *your*
 ability to tell sessions apart.
 
-### One poller per bot token
+One bridge serves any number of parallel sessions — see
+[Deployment](#deployment) for how bots, groups and bridges map onto machines.
 
-`getUpdates` is exclusive — two bridge instances on the same token fight over
-updates (409 Conflict). The constraint is per **token**, not per group:
-several bots can post into the same group quite happily. And you never need a
-bot per session — that is what topics are for; one bridge serves many parallel
-sessions.
+## Deployment
 
-Copying one token to two machines is the one configuration that misbehaves
-silently, with each poller randomly stealing the other's updates.
+Three ratios settle almost every question:
 
-### Deployment topologies
+| | | |
+|---|---|---|
+| bridge : bot | **1 : 1** | hard constraint — `getUpdates` is exclusive per token |
+| bridge : group | **N : 1** | several bots post into one group quite happily |
+| bridge : sessions | **1 : many** | that is what topics are for |
 
-| | Bots | Bridges | Needs a token + TLS? |
+So: **one bot per bridge process, one group for everything.** You never need a
+bot per session, and a second group only buys separation that topics already
+give you.
+
+### One machine — the default
+
+```
+1 bot  ->  1 group  ->  1 bridge on 127.0.0.1  ->  many sessions, a topic each
+```
+
+Nothing else to configure. No token, no TLS, no certificates: the preflight
+only demands those off loopback.
+
+### Several machines — one bridge each
+
+```
+laptop   -> bridge on 127.0.0.1 -> bot A -.
+desktop  -> bridge on 127.0.0.1 -> bot B -+-> one group, topics from all three
+server   -> bridge on 127.0.0.1 -> bot C -'
+```
+
+Every listener stays on loopback, so there is no shared secret to rotate, no
+certificate to issue or renew, no port reachable from your network, and no
+`NODE_EXTRA_CA_CERTS` to distribute. The security story is "nothing is
+exposed" rather than "everything is exposed but authenticated". The cost is one
+`/newbot` per machine.
+
+This is the recommended shape for more than one host.
+
+### Several machines — one shared bridge
+
+One bot, one group, one bridge on the LAN, with the other hosts posting to it.
+`BRIDGE_TOKEN` **and** TLS both become mandatory — see
+[Securing the channel](#securing-the-claude-code--bridge-channel); the preflight
+refuses to start without them.
+
+Worth it when one process really has to be managed centrally, or hosts come and
+go. At three machines it is more moving parts than it saves, and it turns the
+bridge port into a network-reachable endpoint that can approve tool calls.
+
+| | Bots | Bridges | Token + TLS |
 |---|---|---|---|
-| **One machine** | 1 | 1, on `127.0.0.1` | no |
-| **Many machines, one bridge** | 1 | 1, on the LAN | **yes**, both |
-| **Many machines, one bridge each** | 1 per machine | 1 per machine, loopback | no |
+| One machine | 1 | 1, loopback | no |
+| Many machines, one bridge each | 1 each | 1 each, loopback | no |
+| Many machines, one shared bridge | 1 | 1, on the LAN | **both required** |
 
-- **One machine** is the default and needs no security setup at all: a
-  loopback bridge, unlimited sessions, one topic each.
-- **One shared bridge** is the "run one bridge for all your hosts" case. The
-  other hosts POST across the network, so `BRIDGE_TOKEN` and TLS are both
-  mandatory — the preflight refuses to start without them.
-- **A bridge per machine** keeps every listener on loopback, so there is no
-  shared secret, no certificate and no exposed port anywhere. Each needs its
-  own bot token, because of the exclusivity above, but they can all post into
-  one group. Usually the easiest to secure; the cost is a `/newbot` per
-  machine.
+### The one configuration that breaks
+
+Copying **one token to two machines.** `getUpdates` is exclusive, so both
+pollers grab updates at random and a button press lands on whichever bridge
+happened to poll first — silently wrong rather than loudly broken. One token,
+one process, always.
 
 ## Web admin page
 
@@ -225,6 +261,10 @@ Works behind NAT with no port forwarding and no tunnel:
   from sleep just reconnects.
 
 ### Bridge and Claude Code on different hosts
+
+The mechanics of the shared-bridge topology in [Deployment](#deployment). If
+you would rather not set up a token and certificates, running a bridge per
+machine avoids all of this — every listener stays on loopback.
 
 Set `BRIDGE_BIND` to the LAN address (or `0.0.0.0`) on the bridge host and point
 `examples/hooks.settings.json` at `https://bridge.lan:8765/hook` — change the hostname to
