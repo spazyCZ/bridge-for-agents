@@ -167,6 +167,51 @@ pollers grab updates at random and a button press lands on whichever bridge
 happened to poll first — silently wrong rather than loudly broken. One token,
 one process, always.
 
+## Notifications from the agent
+
+A long-running task can push a line to your phone through an MCP tool, so you
+are not tied to the terminal waiting for it.
+
+```bash
+claude mcp add bridge-notify -- bridge-for-agents-mcp
+```
+
+The server reads `BRIDGE_URL` (default `http://127.0.0.1:8765`) and
+`BRIDGE_TOKEN`. It exposes exactly one tool:
+
+| | |
+|---|---|
+| `notify_user` | `message`, and `level` of `info` / `warn` / `error` |
+
+The typical use is `/loop`: report when something changes, once at the end, and
+stay quiet otherwise.
+
+**It is send-only, and that is deliberate.** It posts to `/notify`, which sends
+and returns — nothing is awaited and no chat content comes back. There is no
+tool that reads a reply, and there will not be: that would turn a one-way
+approval channel into a bidirectional one. To ask a question, use
+`AskUserQuestion`, which the bridge already routes to the same phone with
+buttons.
+
+Notifications are [redacted](#logs) like any other outgoing message, recorded
+in the [audit log](#audit-log) with the message in full, and capped at
+`BRIDGE_NOTIFY_RATE` (20 a minute) so a runaway loop cannot flood you.
+`BRIDGE_NOTIFY=0` refuses them.
+
+### The skill
+
+`skills/notify-user/` is a Claude Code skill telling the agent what belongs in
+a notification and, more importantly, what must never go in one — credentials,
+file contents, stack traces, customer data. Install it with:
+
+```bash
+cp -r skills/notify-user ~/.claude/skills/
+```
+
+Redaction is a backstop, not a licence. It knows common key shapes; it does not
+know your customer's phone number or your internal hostnames. The skill exists
+so the agent gets it right before the redactor has to.
+
 ## Logs
 
 Two logs, opposite rules — confusing them would be a bug.

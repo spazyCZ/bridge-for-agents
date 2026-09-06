@@ -141,6 +141,9 @@ Cut by [the invariant](PLAN.md#the-invariant), not by cost:
 - **Chat commands** — `/sessions`, `/mute`, `/deny_all`, and the `/ping` and
   `/pending` that used to exist. Harmless individually; collectively they are
   the precedent that makes the invariant negotiable.
+- **Any tool that reads from the chat.** `notify_user` sends; nothing reads.
+  A tool that could collect a reply would turn the approval channel into a
+  bidirectional one and let the chat steer the agent outside the hook flow.
 - **Webhook mode.** It would lift the one-poller-per-token limit, but it means
   a public inbound endpoint. Outbound-only polling is a security property here,
   not an implementation detail.

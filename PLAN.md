@@ -8,6 +8,7 @@
 > | 1 — Enforce one-way | **done**, with exit test in `tests/test_invariant.py` |
 > | 2 — Audit log | **core done** — log, chain, verifier. Anchor, rotation and rich filters deferred |
 > | 3 — Deployment hardening | not started |
+> | — Notifications | **done** — `notify_user` MCP tool, send-only, rate-limited, redacted, audited |
 > | 4 — Verify against reality | **not started, and sequenced second** |
 > | 5 — Second channel | deferred, possibly indefinitely |
 >
@@ -37,9 +38,24 @@ convenience features are only kept when they don't weaken either.
 
 ## The invariant
 
-> Every message to the phone originates from a Claude Code hook.
-> Nothing the phone sends can start anything — it can only answer a request
+> Every message to the phone originates **on the Claude Code host** — from a
+> hook, or from a tool the agent called there.
+> Nothing the chat sends can start anything — it can only answer a request
 > that is already open and waiting.
+
+**The first clause was widened, deliberately and once.** It originally read
+"originates from a Claude Code hook". Adding `notify_user` — an MCP tool the
+agent calls to push a progress line to the phone — meant a message could also
+originate from a tool call. The wording now says what actually holds.
+
+The security-relevant half is untouched. `notify_user` is **send-only**: it
+posts to `/notify`, which calls `send` and never `ask`, awaits nothing, and
+returns nothing but confirmation. No chat content can reach the agent through
+it. A tool that could read a reply would break the invariant, and is not going
+to be added.
+
+If a future change makes the second clause harder to state than it is here, it
+is the change that is wrong.
 
 Everything below either enforces this, records it, or gets cut for conflicting
 with it. If a future feature can't be added without breaking it, it doesn't

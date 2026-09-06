@@ -188,3 +188,11 @@ def test_redaction_can_be_switched_off(bridge, monkeypatch):
     monkeypatch.setattr(bridge, "REDACTOR", Redactor(enabled=False))
     text, hidden = bridge.summarize_counted("Bash", {"command": "export API_KEY=sk-" + "a" * 32})
     assert "sk-" in text and hidden == 0
+
+
+def test_session_tag_omits_an_empty_session_id(bridge, monkeypatch):
+    """A notification may carry no session id; <code></code> looks broken."""
+    monkeypatch.setattr(bridge, "SCOPE", "flat")
+    tag = bridge.session_tag({"cwd": "/home/me/myrepo", "session_id": ""})
+    assert "<code>" not in tag
+    assert "myrepo" in tag

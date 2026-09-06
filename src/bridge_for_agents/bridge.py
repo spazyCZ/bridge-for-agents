@@ -85,6 +85,10 @@ Env:
   BRIDGE_LOG_ACCESS
                  set to 1 for aiohttp's per-request access log. Off by default:
                  the admin page polls every 2 s and would drown everything else
+  BRIDGE_NOTIFY  set to 0 to refuse agent-sent notifications on POST /notify
+  BRIDGE_NOTIFY_RATE
+                 most notifications accepted per minute, default 20. A runaway
+                 loop should not be able to flood your phone
 """
 from __future__ import annotations
 
@@ -96,7 +100,9 @@ import logging
 import os
 import ssl
 import sys
+import time
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -122,6 +128,8 @@ WAIT = int(os.environ.get("BRIDGE_TIMEOUT", "540"))
 LOG_LEVEL = os.environ.get("BRIDGE_LOG_LEVEL", "INFO")
 LOG_FILE = os.environ.get("BRIDGE_LOG_FILE", "")
 LOG_ACCESS = os.environ.get("BRIDGE_LOG_ACCESS") == "1"
+NOTIFY = os.environ.get("BRIDGE_NOTIFY", "1") != "0"
+NOTIFY_RATE = int(os.environ.get("BRIDGE_NOTIFY_RATE", "20"))
 ADMIN = os.environ.get("BRIDGE_ADMIN") == "1"
 ADMIN_TOKEN = os.environ.get("BRIDGE_ADMIN_TOKEN", "") or TOKEN
 HISTORY = int(os.environ.get("BRIDGE_ADMIN_HISTORY", "200"))
@@ -421,7 +429,9 @@ def session_tag(ev: dict) -> str:
     if SCOPE == "session":
         return ""
     cwd = os.path.basename((ev.get("cwd") or "").rstrip("/")) or "?"
-    return f"📁 {esc(cwd)} · <code>{esc(ev.get('session_id', '')[:8])}</code>\n"
+    sid = (ev.get("session_id") or "")[:8]
+    # A notification may carry no session id; an empty <code></code> looks broken.
+    return f"📁 {esc(cwd)}" + (f" · <code>{esc(sid)}</code>\n" if sid else "\n")
 
 
 def summarize_tool(tool: str, inp: dict) -> str:
@@ -605,6 +615,60 @@ async def hook_endpoint(request: web.Request) -> web.Response:
     return web.json_response(out)
 
 
+_notify_times: deque[float] = deque(maxlen=1000)
+
+
+def _rate_ok() -> bool:
+    """Fixed window over the last minute. A stuck loop must not flood the phone."""
+    now = time.monotonic()
+    while _notify_times and now - _notify_times[0] > 60:
+        _notify_times.popleft()
+    if len(_notify_times) >= NOTIFY_RATE:
+        return False
+    _notify_times.append(now)
+    return True
+
+
+async def notify_endpoint(request: web.Request) -> web.Response:
+    """Agent-sent notification. Send-only, by design.
+
+    This is the one message to the phone that does not originate from a hook.
+    It still originates *on the Claude Code host*, so the security half of the
+    invariant is untouched: there is no reply path here, nothing is awaited,
+    and nothing from the chat can reach the caller. It calls `send`, never
+    `ask` — and that is what keeps it a notification rather than a back door.
+    """
+    if not authorized(request):
+        log.warning("rejected notify from %s: bad or missing token", request.remote)
+        AUDIT.write("auth_failure", source=request.remote or "?", path=request.path)
+        return web.json_response({"error": "unauthorized"}, status=401)
+    if not NOTIFY:
+        return web.json_response({"error": "notifications are disabled"}, status=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "body must be JSON"}, status=400)
+
+    raw = str(body.get("message") or "").strip()
+    if not raw:
+        return web.json_response({"error": "message is required"}, status=400)
+    if not _rate_ok():
+        log.warning("notification dropped: over %d per minute", NOTIFY_RATE)
+        return web.json_response({"error": f"rate limit: {NOTIFY_RATE}/min"}, status=429)
+
+    text, hidden = REDACTOR.scrub(raw[:3000])
+    ev = {"session_id": body.get("session_id") or "", "cwd": body.get("cwd") or ""}
+    chan: Channel = request.app["chan"]
+    thread = await chan.thread_for(ev) if ev["session_id"] else None
+    title = {"warn": "⚠️", "error": "🔴"}.get(str(body.get("level", "info")), "🔔")
+    await chan.send(f"{title} {session_tag(ev)}{esc(text)}{redact.note(hidden)}", thread=thread)
+
+    AUDIT.write("notification", session_id=ev["session_id"], cwd=ev["cwd"],
+                level=body.get("level", "info"), message=raw, redacted=hidden)
+    log.info("notification sent (%d chars, %d redacted)", len(text), hidden)
+    return web.json_response({"ok": True, "redacted": hidden})
+
+
 async def health(_: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
@@ -661,6 +725,7 @@ async def main() -> None:
     app = web.Application()
     app["chan"] = chan
     app.router.add_post("/hook", hook_endpoint)
+    app.router.add_post("/notify", notify_endpoint)
     app.router.add_get("/health", health)
     if ADMIN:
         admin.attach(app, STORE, ADMIN_TOKEN)

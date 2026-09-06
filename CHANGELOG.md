@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- `notify_user`, an MCP tool letting a running agent push a progress line to
+  the user's phone (`bridge-for-agents-mcp`, backed by a new `POST /notify`).
+  Send-only: it calls `send`, never `ask`, awaits nothing and returns nothing
+  from the chat. Redacted, audited with the message in full, and capped by
+  `BRIDGE_NOTIFY_RATE` (20/min); `BRIDGE_NOTIFY=0` refuses them. The JSON-RPC
+  is hand-written — the MCP SDK brings ~25 transitive dependencies for a
+  one-tool stdio server.
+- `skills/notify-user/`: a Claude Code skill covering how to write a
+  notification for a lock screen, and what must never go in one.
 - Diagnostic logging (`logs.py`), distinct from the audit log and with the
   opposite rule about secrets: `BRIDGE_LOG_LEVEL`, `BRIDGE_LOG_FILE` (mode
   `0600`, rotating at 10 MB, 5 kept, permissions preserved across rollover) and
@@ -56,6 +65,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   makes it one. `tests/test_invariant.py` enforces it.
 
 ### Changed
+
+- The invariant in `PLAN.md` now reads "originates on the Claude Code host —
+  from a hook, or from a tool the agent called there", widened once and
+  deliberately to admit `notify_user`. The half that matters is unchanged:
+  nothing the chat sends can start anything.
 
 - aiohttp's per-request access log is **off by default**. The admin page polls
   every two seconds, so it wrote about 1,800 lines an hour. `BRIDGE_LOG_ACCESS=1`

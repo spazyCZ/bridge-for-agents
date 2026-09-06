@@ -32,6 +32,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
 [project.scripts]
 bridge-for-agents = "bridge_for_agents.cli:cli"
 bridge-audit-verify = "bridge_for_agents.audit:main"
+bridge-for-agents-mcp = "bridge_for_agents.mcp:main"
 
 [project.urls]
 Homepage = "https://github.com/spazyCZ/bridge-for-agents"

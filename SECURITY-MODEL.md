@@ -60,6 +60,19 @@ The only listener is the hook endpoint, and it binds `127.0.0.1` unless you
 change it. Three routes exist in total: `POST /hook`, `GET /health`, and — only
 with `BRIDGE_ADMIN=1` — `GET /admin` and `GET /admin/api/state`.
 
+## Can the agent message you unprompted?
+
+Yes, and it is the one thing that does not come from a hook. The `notify_user`
+MCP tool lets a running agent push a progress line to your phone — the point of
+it is a long task reporting in while you are away from the terminal.
+
+It runs on your machine, like every other message, and it is **send-only**: it
+posts to `/notify`, which sends and returns. Nothing is awaited, nothing from
+the chat comes back, and there is no tool that reads a reply. Notifications are
+redacted like every other outgoing message, recorded in the audit log with the
+message in full, and capped at `BRIDGE_NOTIFY_RATE` (20/min) so a runaway loop
+cannot flood you. `BRIDGE_NOTIFY=0` refuses them outright.
+
 ## Can you task the agent from the chat?
 
 **No. You cannot start a turn, and you cannot run a command.**
