@@ -108,7 +108,7 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout, web
 
-from . import __version__, admin, audit, logs, redact, store
+from . import __version__, admin, audit, logs, redact, replies, store
 
 log = logging.getLogger("bridge")
 
@@ -166,9 +166,10 @@ class Channel:
         raise NotImplementedError
 
     async def ask(self, text: str, options: list[tuple[str, str]], timeout: int,
-                  thread: Any = None) -> Answer | None:
+                  thread: Any = None, hint: str = "") -> Answer | None:
         """Show `text` with `options` [(label, value)], wait for a button press
-        or a free-text reply. Returns None on timeout."""
+        or a free-text reply. `hint` tells the user what typing will do.
+        Returns None on timeout."""
         raise NotImplementedError
 
 
@@ -285,7 +286,7 @@ class TelegramChannel(Channel):
         )
 
     async def ask(self, text: str, options: list[tuple[str, str]], timeout: int,
-                  thread: Any = None) -> Answer | None:
+                  thread: Any = None, hint: str = "") -> Answer | None:
         rid = uuid.uuid4().hex[:8]
         log.debug("asking %s (%d options, %ds) in thread %s", rid, len(options), timeout, thread)
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
@@ -293,7 +294,8 @@ class TelegramChannel(Channel):
         STORE.open_prompt(rid, text, [lbl for lbl, _ in options], timeout)
         keyboard = {"inline_keyboard": [[{"text": lbl, "callback_data": f"{rid}:{val}"}]
                                         for lbl, val in options]}
-        msg = await self.send(text + "\n\n<i>Tap a button or reply to this message.</i>",
+        hint = hint or "Tap a button or reply to this message."
+        msg = await self.send(f"{text}\n\n<i>{hint}</i>",
                               thread=thread, reply_markup=keyboard)
         if msg:
             self.msg_to_rid[msg["message_id"]] = rid
@@ -515,16 +517,24 @@ async def on_permission(chan: Channel, ev: dict, thread: Any) -> dict:
     text = (f"🔐 <b>{esc(tool)}</b> wants permission\n{session_tag(ev)}"
             f"<pre>{esc(summary)}</pre>{redact.note(hidden)}")
     ans = await chan.ask(text, [("✅ Allow", "allow"), ("❌ Deny", "deny"),
-                                ("💻 Answer in terminal", "ask")], WAIT, thread)
-    if ans is None or ans[1] == "ask":
+                                ("💻 Answer in terminal", "ask")], WAIT, thread,
+                         hint="Tap a button, or reply <b>y</b> / <b>n</b>. "
+                              "Any other reply denies, with your text as the reason.")
+    if ans is None or ans == ("button", "ask"):
         store.outcome_hint.set("timeout" if ans is None else "terminal")
         store.answer_source.set("timeout" if ans is None else "terminal")
         return {}  # no decision → normal terminal prompt
     kind, val = ans
     store.answer_source.set(kind)
-    if kind == "text":  # free text on a permission = deny with a reason for Claude
+    if kind == "text":
+        # A bare y/n is the decision; anything else denies and carries the text
+        # to Claude as the reason. See replies.py for why allowing is strict.
+        behavior, reason = replies.permission(val)
+        decision: dict[str, Any] = {"behavior": behavior}
+        if reason:
+            decision["message"] = reason
         return {"hookSpecificOutput": {"hookEventName": "PermissionRequest",
-                                       "decision": {"behavior": "deny", "message": val}}}
+                                       "decision": decision}}
     return {"hookSpecificOutput": {"hookEventName": "PermissionRequest",
                                    "decision": {"behavior": val}}}
 
@@ -541,8 +551,10 @@ async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
             lines.append(f"<b>{i}.</b> {esc(o.get('label', ''))}{desc}")
         buttons = [(f"{i}. {o.get('label', '')[:40]}", str(i)) for i, o in enumerate(opts, 1)]
         buttons.append(("💻 Answer in terminal", "ask"))
-        ans = await chan.ask("\n".join(lines), buttons, WAIT, thread)
-        if ans is None or ans[1] == "ask":
+        ans = await chan.ask("\n".join(lines), buttons, WAIT, thread,
+                             hint="Tap an option, or reply with its number — "
+                                  "add a comment after a dash.")
+        if ans is None or ans == ("button", "ask"):
             store.outcome_hint.set("timeout" if ans is None else "terminal")
             store.answer_source.set("timeout" if ans is None else "terminal")
             return {}  # fall back to the CLI's own picker
@@ -550,6 +562,11 @@ async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
         store.answer_source.set(kind)
         if kind == "button":
             val = opts[int(val) - 1].get("label", val)
+        else:
+            # "2", "2 - but check the migration first", or the label itself.
+            labels = [o.get("label", "") for o in opts]
+            picked, comment = replies.choice(val, labels)
+            val = replies.with_comment(picked, comment) if picked else val
         answers[q.get("question", "")] = val
     return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
                                    "permissionDecision": "allow",

@@ -40,8 +40,30 @@ Claude Code ◀──JSON decision── bridge ◀──button/reply── you
 
 Everything above is also visible in the [web admin page](#web-admin-page).
 
-- **Free text**: reply to the bot message. On a question it becomes the answer;
-  on a permission it's a *deny with your text as the reason* (Claude reads it).
+### Typing instead of tapping
+
+Reply to the bot's message. What you type is parsed, not passed through blindly:
+
+| On a permission | Result |
+|---|---|
+| `y` `yes` `ok` `allow` `👍` | **allow** |
+| `n` `no` `deny` `stop` `👎` | **deny**, no reason |
+| `no, wrong branch` | **deny**, reason `wrong branch` |
+| anything else | **deny**, your whole message as the reason |
+
+| On a question | Result |
+|---|---|
+| `2` | option 2 |
+| `2 - but check the migration first` | option 2, with the comment attached |
+| `Postgres` | the option with that label |
+| `3 replicas` | the answer `3 replicas` — a number needs a separator to count as a choice |
+| `neither, use DuckDB` | that text as the answer |
+
+**Affirmatives must be bare.** `yes` allows; `yes but only the first one`
+denies, carrying the caveat to Claude as the reason. The asymmetry is
+deliberate — reading a hedge as approval runs the command, while reading it as
+a denial only sends the prompt back to your terminal. One of those is
+recoverable.
 - **Fallback**: no answer within `BRIDGE_TIMEOUT` (540 s) or "Answer in terminal"
   → bridge returns `{}` → Claude Code shows its normal prompt in the terminal.
   Hook timeout in settings is 600 s so the bridge always answers first.

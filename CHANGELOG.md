@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- Typed replies are parsed rather than passed through (`replies.py`). `y`/`yes`
+  allows and `n`/`no` denies, a negative keeps its reason (`no, wrong branch`),
+  and on a question a leading option number picks that option with anything
+  after a separator kept as a comment (`2 - but check the migration first`).
+  A number without a separator stays an answer, so `3 replicas` is not a vote.
 - `notify_user`, an MCP tool letting a running agent push a progress line to
   the user's phone (`bridge-for-agents-mcp`, backed by a new `POST /notify`).
   Send-only: it calls `send`, never `ask`, awaits nothing and returns nothing
@@ -69,6 +74,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   makes it one. `tests/test_invariant.py` enforces it.
 
 ### Changed
+
+- **Replying `yes` to a permission used to deny**, with "yes" as the reason.
+  It now allows. Hedged affirmatives (`yes but only the first one`) still deny
+  and carry the caveat — approving on a misread runs the command, denying only
+  returns the prompt to the terminal.
+- Typing the word `ask` fell back to the terminal, because it matched the
+  *button value* for "Answer in terminal". Only a button press means terminal.
 
 - The invariant in `PLAN.md` now reads "originates on the Claude Code host —
   from a hook, or from a tool the agent called there", widened once and

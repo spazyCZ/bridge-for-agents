@@ -37,6 +37,7 @@ match the surrounding style and keep lines within 100 columns.
 | `src/bridge_for_agents/store.py` | in-memory session and event history (no persistence) |
 | `src/bridge_for_agents/audit.py` | append-only record of requests and decisions, and its verifier |
 | `src/bridge_for_agents/logs.py` | diagnostic logging: level, rotating private file, redaction filter |
+| `src/bridge_for_agents/replies.py` | parsing a typed reply into a decision — pure, and fails safe |
 | `src/bridge_for_agents/mcp.py` | MCP stdio server exposing the send-only `notify_user` tool |
 | `skills/notify-user/` | Claude Code skill: how to write a notification, and what never to put in one |
 | `src/bridge_for_agents/admin.py` | read-only `/admin` routes and the page |
