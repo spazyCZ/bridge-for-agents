@@ -34,7 +34,7 @@ question before any code.
 | 4 | Metrics on the admin page | `duration_ms` and outcomes are already recorded; shows whether rules are tuned | **S** |
 | 5 | Edit the message instead of replying | Halves chat volume | **S** |
 | 5 | Silence non-decisions | Ring for permissions, not for `Stop` | **S** |
-| 5 | `multiSelect` questions | Currently answered single-choice | **M** |
+| 5 | `multiSelect` questions | Currently answered single-choice. The format is known: `answers` joins the chosen labels with commas | **M** |
 | 5 | Show more than 600 characters | You approve a truncated command | **S** |
 | 5 | Approve-with-edit | Free text can only deny today | **M** |
 
@@ -130,6 +130,24 @@ and a hostile notification pattern.
 | `multiSelect` answered single-choice | Toggle-style buttons with a Done row |
 | Tool input truncated at 600 characters | A **show more** button, or the remainder on the admin page |
 | Free text can only deny | Approve-with-edit — `PreToolUse` accepts `updatedInput` |
+
+### `permissionDecision: "defer"`
+
+Claude Code has a mechanism built for exactly this shape of problem: a
+`PreToolUse` hook returns `"defer"`, the process exits with the tool call
+preserved, an external UI collects the answer, and `claude -p --resume` re-runs
+the hook with `updatedInput`. It is how a headless session is meant to ask a
+question with no terminal to answer in.
+
+The bridge does not use it, and blocks synchronously instead. That is right for
+an interactive session — a hook that returns nothing for four minutes is
+exactly what keeps the terminal waiting for the phone. But it means the bridge
+cannot serve a headless run, where the process would have to exit and be
+resumed. Worth building if headless sessions ever matter here; a significant
+change, since something outside the bridge has to own the resume.
+
+Constraint worth knowing: `"defer"` only works when Claude makes a single tool
+call in the turn.
 
 ## Deliberately not planned
 

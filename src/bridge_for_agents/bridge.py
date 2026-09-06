@@ -563,6 +563,7 @@ async def on_permission(chan: Channel, ev: dict, thread: Any) -> dict:
 async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
     inp = ev.get("tool_input", {}) or {}
     answers: dict[str, str] = {}
+    remarks: list[str] = []
     for q in inp.get("questions", []):
         opts = q.get("options", []) or []
         lines = [f"❓ <b>{esc(q.get('header', 'Question'))}</b>",
@@ -587,11 +588,23 @@ async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
             # "2", "2 - but check the migration first", or the label itself.
             labels = [o.get("label", "") for o in opts]
             picked, comment = replies.choice(val, labels)
-            val = replies.with_comment(picked, comment) if picked else val
+            if picked:
+                val = picked
+                if comment:
+                    # `answers` maps a question to *the selected option label*.
+                    # A decorated value is not a label, so the remark travels in
+                    # additionalContext, which exists to put text in front of
+                    # Claude alongside the tool result.
+                    remarks.append(f"On \"{q.get('question', '')}\" the user added: {comment}")
         answers[q.get("question", "")] = val
-    return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
-                                   "permissionDecision": "allow",
-                                   "updatedInput": {**inp, "answers": answers}}}
+    out: dict[str, Any] = {"hookEventName": "PreToolUse",
+                           "permissionDecision": "allow",
+                           # Echo the original questions back and add `answers`;
+                           # "allow" alone is not enough for AskUserQuestion.
+                           "updatedInput": {**inp, "answers": answers}}
+    if remarks:
+        out["additionalContext"] = "\n".join(remarks)
+    return {"hookSpecificOutput": out}
 
 
 async def on_stop(chan: Channel, ev: dict, thread: Any) -> dict:

@@ -60,3 +60,52 @@ def test_api_base_is_configurable(bridge, monkeypatch):
     """The stand-in Telegram in bridge-for-agent-test depends on this."""
     monkeypatch.setattr(bridge, "TG_API_BASE", "http://127.0.0.1:8081")
     assert bridge.TelegramChannel("tok", -1).api == "http://127.0.0.1:8081/bottok"
+
+
+# --- the AskUserQuestion contract ----------------------------------------
+async def _answer(bridge, monkeypatch, reply):
+    """Drive on_ask_user_question with one typed reply."""
+    class Chan:
+        async def ask(self, text, options, timeout, thread=None, hint=""):
+            return ("text", reply)
+
+    ev = {"hook_event_name": "PreToolUse", "tool_name": "AskUserQuestion",
+          "tool_input": {"questions": [{
+              "question": "Which database?", "header": "DB",
+              "options": [{"label": "Postgres"}, {"label": "SQLite"}]}]}}
+    return await bridge.on_ask_user_question(Chan(), ev, None)
+
+
+async def test_answers_map_a_question_to_a_bare_option_label(bridge, monkeypatch):
+    """The documented contract: `answers` maps question text to the selected
+    option *label*. A decorated value is not a label."""
+    out = (await _answer(bridge, monkeypatch, "2"))["hookSpecificOutput"]
+    assert out["updatedInput"]["answers"] == {"Which database?": "SQLite"}
+    assert out["permissionDecision"] == "allow"
+
+
+async def test_the_original_questions_are_echoed_back(bridge, monkeypatch):
+    """`allow` alone is not sufficient for AskUserQuestion; the input must come
+    back whole with `answers` added."""
+    out = (await _answer(bridge, monkeypatch, "1"))["hookSpecificOutput"]
+    assert out["updatedInput"]["questions"][0]["question"] == "Which database?"
+    assert len(out["updatedInput"]["questions"][0]["options"]) == 2
+
+
+async def test_a_comment_travels_in_additional_context_not_in_the_answer(bridge, monkeypatch):
+    out = (await _answer(bridge, monkeypatch, "2 - but check the migration first"))
+    spec = out["hookSpecificOutput"]
+    assert spec["updatedInput"]["answers"] == {"Which database?": "SQLite"}
+    assert "check the migration first" in spec["additionalContext"]
+    assert "check the migration" not in str(spec["updatedInput"])
+
+
+async def test_no_comment_means_no_additional_context(bridge, monkeypatch):
+    spec = (await _answer(bridge, monkeypatch, "SQLite"))["hookSpecificOutput"]
+    assert "additionalContext" not in spec
+
+
+async def test_free_text_that_names_no_option_is_still_the_answer(bridge, monkeypatch):
+    """Not a label, but it is what the user said, and there is nothing better."""
+    spec = (await _answer(bridge, monkeypatch, "neither, use DuckDB"))["hookSpecificOutput"]
+    assert spec["updatedInput"]["answers"] == {"Which database?": "neither, use DuckDB"}

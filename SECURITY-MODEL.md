@@ -92,7 +92,7 @@ What you can send back, and nothing else:
 | Free text on a permission | `deny`, with your text as the reason |
 | A numbered button on a question | that option's label, as the answer |
 | Free text on a question | your text, as the answer |
-| 💻 Answer in terminal | `{}` — the normal terminal prompt appears |
+| 💻 Answer in terminal | `{}` — no decision; the terminal prompt appears |
 | Nothing, until the timeout | `{}` — same as above |
 
 An approval is scoped to the single tool call that asked. There is no "always
@@ -181,10 +181,16 @@ on.
 ## What is enforced today
 
 **The bridge fails safe.** Every path that is not an explicit approval returns
-`{}`, which means "no decision, prompt in the terminal". A handler exception, a
-timeout, a Telegram outage, a malformed event — all of them fall back to the
-terminal. **No error path can produce an approval.** The single line that emits
-`behavior: allow` is reachable only from a button press carrying that value.
+`{}`, which means *no decision*. A handler exception, a timeout, a Telegram
+outage, a malformed event — none of them decide anything. **No error path can
+produce an approval.** The single line that emits `behavior: allow` is
+reachable only from a button press carrying that value.
+
+What "no decision" then does depends on the session. Interactively, the normal
+terminal prompt appears. In a session that cannot prompt — a background
+subagent, or headless mode — Claude Code **denies** the call instead. Both are
+safe, and it is worth knowing which you get: away from a terminal, an
+unanswered prompt is a denial rather than a wait.
 
 ```mermaid
 flowchart TD
@@ -196,7 +202,7 @@ flowchart TD
     Q -->|"anything else"| F["Answer in terminal pressed<br/>no answer before the timeout<br/>handler raised an exception<br/>Telegram unreachable"]
 
     F --> E["empty response"]
-    E --> P["normal terminal prompt<br/>nothing was approved"]
+    E --> P["no decision<br/>terminal prompt, or denied<br/>where nothing can prompt"]
 
     classDef ok fill:#0f2e1a,stroke:#22c55e,color:#e8f5ec
     classDef no fill:#3b1414,stroke:#ef4444,color:#fdeaea

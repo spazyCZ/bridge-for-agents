@@ -9,7 +9,7 @@
 > | 2 — Audit log | **core done** — log, chain, verifier. Anchor, rotation and rich filters deferred |
 > | 3 — Deployment hardening | not started |
 > | — Notifications | **done** — `notify_user` MCP tool, send-only, rate-limited, redacted, audited |
-> | 4 — Verify against reality | **not started, and sequenced second** |
+> | 4 — Verify against reality | **payload check done** — shapes confirmed against the spec, one defect found and fixed. Long-run testing outstanding |
 > | 5 — Second channel | deferred, possibly indefinitely |
 >
 > **Phase 0's keyfile item did not apply to this repository.** There is no
@@ -29,6 +29,29 @@
 > chain, and `bridge-audit-verify`. Deferred: the hourly Telegram anchor, size
 > rotation with chain continuity, and the verifier's `--since` / `--tool` /
 > `--outcome` filters. Nothing deferred is blocked — they are additive.
+>
+> **Phase 4's payload check is done, and the shapes were right.** Verified
+> against the Claude Code hooks specification rather than the two
+> implementations the phase names, neither of which is on this machine:
+> `PermissionRequest` returns a nested `decision` object with `behavior`, and
+> `message` on a deny — as the bridge does. `AskUserQuestion` needs
+> `permissionDecision: "allow"` paired with `updatedInput`, echoing the original
+> `questions` back and adding an `answers` object mapping question text to the
+> selected option label — also as the bridge does. "allow" alone would not have
+> been enough, and the bridge never did that.
+>
+> It found one real defect, in the comment feature added two turns earlier: the
+> remark was being appended to the answer, so `answers` carried
+> `"SQLite — but check the migration first"` where the contract says an option
+> label. The remark now travels in `additionalContext`, which exists to put text
+> in front of Claude alongside the tool result, and `answers` stays a bare label.
+>
+> It also corrected a claim in the documentation. Returning `{}` means *no
+> decision*, which is a terminal prompt interactively but a **denial** in a
+> session that cannot prompt. Both are safe; the docs said only the first.
+>
+> Still outstanding from this phase: the multi-hour session, sleep and resume on
+> the bridge host, and Telegram's rate limits under a rapid series of questions.
 >
 > This plan supersedes [ROADMAP.md](ROADMAP.md) where the two disagree.
 

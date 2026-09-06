@@ -119,7 +119,9 @@ deliberate — reading a hedge as approval runs the command, while reading it as
 a denial only sends the prompt back to your terminal. One of those is
 recoverable.
 - **Fallback**: no answer within `BRIDGE_TIMEOUT` (540 s) or "Answer in terminal"
-  → bridge returns `{}` → Claude Code shows its normal prompt in the terminal.
+  → bridge returns `{}`, meaning *no decision* → Claude Code prompts in the
+  terminal, or denies the call in a session that cannot prompt (a background
+  subagent, or headless). Neither approves.
   Hook timeout in settings is 600 s so the bridge always answers first.
 - **Multiple sessions**: each gets its own topic — see below.
 

@@ -47,10 +47,10 @@ or for more than one machine, see the [user guide](USER-GUIDE.md).
 | **Audit log** | every request and decision, optionally HMAC-chained |
 | **Redaction** | credentials stripped before anything leaves the machine |
 
-If nobody answers, the bridge returns `{}` and Claude Code prompts in the
-terminal exactly as it would have. Every failure path does the same — a
-timeout, an exception, Telegram being down. **No error path can approve
-anything.**
+If nobody answers, the bridge returns `{}` — *no decision* — and Claude Code
+prompts in the terminal exactly as it would have, or denies the call in a
+session that cannot prompt. Every failure path does the same: a timeout, an
+exception, Telegram being down. **No error path can approve anything.**
 
 ## Documentation
 

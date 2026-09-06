@@ -111,6 +111,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A comment on a question was corrupting the answer.** `answers` maps a
+  question to the *selected option label*; the comment feature appended the
+  remark to it, so `2 - but check the migration first` sent
+  `"SQLite — but check the migration first"` where a label was expected. The
+  remark now travels in `additionalContext` and `answers` stays a bare label.
+  Found by checking the shapes against the hooks specification.
+
 - **The shutdown path had never run.** SIGTERM — what `kill` and systemd send —
   terminates Python where it stands unless a handler is installed, so the
   `finally` block was dead code: no `🔴 bridge offline` notice and no
@@ -120,6 +127,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the OOM killer remain uncatchable.
 
 ### Changed
+
+- Documentation corrected: returning `{}` means *no decision*, which is a
+  terminal prompt in an interactive session but a **denial** in one that cannot
+  prompt — a background subagent, or headless. Both are safe; the docs
+  described only the first.
 
 - The package version is now single-sourced from
   `src/bridge_for_agents/__init__.py`, with `pyproject.toml` reading it. It was
