@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- `USER-GUIDE.md`: setting up Telegram (including the privacy-mode and
+  Manage-Topics traps people hit), deployment, answering prompts,
+  notifications, the admin page, logs, audit, securing the channel, and a
+  troubleshooting chapter that did not exist before. The README is now a
+  131-line orientation page rather than a 577-line manual; no content was lost
+  and a check confirms every command from the old README still appears.
 - The startup message is now an identifying card in the group's **General**
   topic: host, version, bot username, chat id and whether it is a forum, and
   the scope and answer window. With one bridge per machine sharing a group,

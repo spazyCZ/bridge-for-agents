@@ -51,6 +51,10 @@ proxy in front and keep the bridge on loopback if you need more.
 
 ## Operating advice
 
+Day-to-day operation, including troubleshooting, is in
+[USER-GUIDE.md](USER-GUIDE.md).
+
+
 - Never expose the bridge port to the internet. Firewall it to your Claude Code
   hosts.
 - Keep `TG_BOT_TOKEN` and `BRIDGE_TOKEN` in your shell profile, a systemd
