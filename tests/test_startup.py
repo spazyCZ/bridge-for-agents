@@ -105,3 +105,32 @@ async def test_a_409_warns_the_chat_once(bridge, monkeypatch):
     assert len(sent) == 1, "warned more than once"
     assert "Another bridge is polling" in sent[0]
     assert "@test_bot" in sent[0]
+
+
+# --- shutdown ------------------------------------------------------------
+def test_shutdown_sets_the_stop_event(bridge):
+    import asyncio
+    import signal
+
+    stop = asyncio.Event()
+    bridge._shutdown(signal.SIGTERM, stop)
+    assert stop.is_set()
+
+
+def test_main_installs_handlers_for_both_stop_signals():
+    """A regression guard, from five bridge lifetimes with zero clean stops.
+
+    SIGTERM — what kill and systemd send — terminates Python where it stands
+    unless a handler is installed, so the shutdown block never ran and no
+    offline notice was ever sent. Only Ctrl-C would have unwound it, which is
+    not how anything stops a daemon.
+    """
+    import inspect
+
+    from bridge_for_agents import bridge as b
+
+    src = inspect.getsource(b.main)
+    assert "signal.SIGTERM" in src
+    assert "signal.SIGINT" in src
+    assert "add_signal_handler" in src
+    assert "await stop.wait()" in src, "must wait on the event the handlers set"

@@ -99,6 +99,7 @@ import html
 import json
 import logging
 import os
+import signal
 import socket
 import ssl
 import sys
@@ -784,6 +785,11 @@ def startup_card(chan: Any, ssl_ctx: Any) -> str:
     return f"🟢 <b>bridge online</b>\n<pre>{body}</pre>"
 
 
+def _shutdown(sig: signal.Signals, stop: asyncio.Event) -> None:
+    log.info("%s received — shutting down", sig.name)
+    stop.set()
+
+
 async def main() -> None:
     access_log = logs.setup(LOG_LEVEL, LOG_FILE, LOG_ACCESS, REDACTOR)
     log.debug("configuration: bind=%s port=%s scope=%s timeout=%s admin=%s audit=%s",
@@ -816,9 +822,22 @@ async def main() -> None:
         log.info("admin page on %s://%s:%d/admin (auth: %s, history in memory only)",
                  scheme, BIND, PORT, "on" if ADMIN_TOKEN else "OFF")
     await chan.send(startup_card(chan, ssl_ctx))
+
+    # Without this, SIGTERM — what kill and systemd send — terminates the
+    # process where it stands and the shutdown below never runs. Only Ctrl-C
+    # would have unwound it, which is not how anything stops a daemon.
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        with contextlib.suppress(NotImplementedError, AttributeError):
+            loop.add_signal_handler(sig, _shutdown, sig, stop)
+
     try:
-        await asyncio.Event().wait()
+        await stop.wait()
     finally:
+        # Best effort: Telegram may be unreachable, and a SIGKILL or an OOM
+        # kill never reaches here at all. A missing offline note means the
+        # bridge died badly, which is worth knowing in itself.
         with contextlib.suppress(Exception):
             await chan.send(f"🔴 <b>bridge offline</b> · "
                             f"<code>{esc(socket.gethostname())}</code>")

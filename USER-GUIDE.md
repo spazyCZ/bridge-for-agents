@@ -539,6 +539,24 @@ curl "https://api.telegram.org/bot$TG_BOT_TOKEN/getChatMember?chat_id=$TG_CHAT_I
 thing. Also check the chat is really a forum — the startup card says so, and
 the bridge logs a warning at startup when it is not.
 
+### Knowing when the bridge stops
+
+A clean stop — `kill`, Ctrl-C, `systemctl stop` — posts
+`🔴 bridge offline · <host>` to **General** and writes a `bridge_stop` record
+to the audit log.
+
+**A missing offline note is itself information**: it means the bridge died
+badly. `kill -9`, the OOM killer and a power cut are all uncatchable, so
+nothing can be sent. If a bridge goes quiet with no offline note, look at
+`dmesg` for an OOM kill before anything else.
+
+```bash
+# every start and stop, in order
+grep -o '"type":"bridge_st[a-z]*"' audit.jsonl | uniq -c
+```
+
+Unequal counts mean at least one bridge died without unwinding.
+
 ### The bridge will not start
 
 The preflight refuses a listener that would be unsafe, and says which rule:

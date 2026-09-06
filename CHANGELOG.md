@@ -96,6 +96,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PLAN.md`: the bridge is a one-way approval channel, and the invariant that
   makes it one. `tests/test_invariant.py` enforces it.
 
+### Fixed
+
+- **The shutdown path had never run.** SIGTERM — what `kill` and systemd send —
+  terminates Python where it stands unless a handler is installed, so the
+  `finally` block was dead code: no `🔴 bridge offline` notice and no
+  `bridge_stop` audit record, across five bridge lifetimes. Handlers for
+  SIGTERM and SIGINT now stop the loop so shutdown actually happens. A missing
+  offline notice now means what it should: the bridge died badly, since SIGKILL
+  and the OOM killer remain uncatchable.
+
 ### Changed
 
 - The package version is now single-sourced from
