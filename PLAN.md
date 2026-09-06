@@ -6,7 +6,7 @@
 > |---|---|
 > | 0 — Strip | **done**, except one item that did not apply (see note) |
 > | 1 — Enforce one-way | **done**, with exit test in `tests/test_invariant.py` |
-> | 2 — Audit log | not started — the substantial work |
+> | 2 — Audit log | **core done** — log, chain, verifier. Anchor, rotation and rich filters deferred |
 > | 3 — Deployment hardening | not started |
 > | 4 — Verify against reality | **not started, and sequenced second** |
 > | 5 — Second channel | deferred, possibly indefinitely |
@@ -20,6 +20,14 @@
 > id on the message path but not on the callback path, so a callback from any
 > chat was recorded *and* answered. Fixed; `test_updates_from_another_chat_are_ignored_entirely`
 > covers it.
+>
+> **Phase 2 was built to the core and stopped there, deliberately.** Shipped:
+> the append-only JSONL at `0600` with `fsync`, sequence and chain continuity
+> across restarts, the six record types, full unredacted tool input, the
+> `button`/`text`/`timeout`/`terminal` source distinction, the optional HMAC
+> chain, and `bridge-audit-verify`. Deferred: the hourly Telegram anchor, size
+> rotation with chain continuity, and the verifier's `--since` / `--tool` /
+> `--outcome` filters. Nothing deferred is blocked — they are additive.
 >
 > This plan supersedes [ROADMAP.md](ROADMAP.md) where the two disagree.
 

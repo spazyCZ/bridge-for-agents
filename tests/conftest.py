@@ -10,11 +10,16 @@ import shutil
 
 os.environ.setdefault("TG_BOT_TOKEN", "123:test-token")
 os.environ.setdefault("TG_CHAT_ID", "-1001234567890")
+# Off by default in tests: the real default writes to the user's home, and a
+# test run must never leave anything there. Tests that exercise it point
+# AuditLog at a tmp_path of their own.
+os.environ.setdefault("BRIDGE_AUDIT", "off")
 
 import subprocess  # noqa: E402
 
 import pytest  # noqa: E402
 
+from bridge_for_agents import audit as audit_module  # noqa: E402
 from bridge_for_agents import bridge as bridge_module  # noqa: E402
 
 
@@ -29,6 +34,7 @@ def bridge(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(bridge_module, "SCOPE", "session")
     monkeypatch.setattr(bridge_module, "ADMIN", False)
     monkeypatch.setattr(bridge_module, "ADMIN_TOKEN", "")
+    monkeypatch.setattr(bridge_module, "AUDIT", audit_module.AuditLog(None))
     return bridge_module
 
 

@@ -70,6 +70,12 @@ Env:
                  text leaves the host. Best effort, never a guarantee
   BRIDGE_REDACT_EXTRA
                  path to a file of extra regexes, one per line, # for comments
+  BRIDGE_AUDIT   append-only JSONL record of every request and decision,
+                 default ~/.local/state/claude-bridge/audit.jsonl, mode 0600.
+                 Set to `off` to disable. Holds the FULL tool input, unredacted
+  BRIDGE_AUDIT_KEY
+                 when set, each record is chained with an HMAC so an edited or
+                 deleted line is detectable. Keep it away from the log itself
 """
 from __future__ import annotations
 
@@ -87,7 +93,7 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout, web
 
-from . import admin, redact, store
+from . import __version__, admin, audit, redact, store
 
 log = logging.getLogger("bridge")
 
@@ -107,6 +113,11 @@ WAIT = int(os.environ.get("BRIDGE_TIMEOUT", "540"))
 ADMIN = os.environ.get("BRIDGE_ADMIN") == "1"
 ADMIN_TOKEN = os.environ.get("BRIDGE_ADMIN_TOKEN", "") or TOKEN
 HISTORY = int(os.environ.get("BRIDGE_ADMIN_HISTORY", "200"))
+_audit_path = os.environ.get("BRIDGE_AUDIT", "")
+AUDIT = audit.AuditLog(
+    None if _audit_path == "off" else (_audit_path or audit.DEFAULT_PATH),
+    os.environ.get("BRIDGE_AUDIT_KEY", ""),
+)
 REDACTOR = redact.Redactor(
     enabled=os.environ.get("BRIDGE_REDACT", "1") != "0",
     extra_path=os.environ.get("BRIDGE_REDACT_EXTRA", ""),
@@ -379,6 +390,7 @@ class TelegramChannel(Channel):
             kind, text = "message", (m.get("text") or "")
         log.warning("dropped unsolicited %s: %r", kind, text[:120])
         STORE.reject(kind, text)
+        AUDIT.write("rejected_unsolicited", chat_id=self.chat_id, kind=kind, text=text[:300])
 
 
 # --------------------------------------------------------------------------
@@ -461,8 +473,10 @@ async def on_permission(chan: Channel, ev: dict, thread: Any) -> dict:
                                 ("💻 Answer in terminal", "ask")], WAIT, thread)
     if ans is None or ans[1] == "ask":
         store.outcome_hint.set("timeout" if ans is None else "terminal")
+        store.answer_source.set("timeout" if ans is None else "terminal")
         return {}  # no decision → normal terminal prompt
     kind, val = ans
+    store.answer_source.set(kind)
     if kind == "text":  # free text on a permission = deny with a reason for Claude
         return {"hookSpecificOutput": {"hookEventName": "PermissionRequest",
                                        "decision": {"behavior": "deny", "message": val}}}
@@ -485,8 +499,10 @@ async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
         ans = await chan.ask("\n".join(lines), buttons, WAIT, thread)
         if ans is None or ans[1] == "ask":
             store.outcome_hint.set("timeout" if ans is None else "terminal")
+            store.answer_source.set("timeout" if ans is None else "terminal")
             return {}  # fall back to the CLI's own picker
         kind, val = ans
+        store.answer_source.set(kind)
         if kind == "button":
             val = opts[int(val) - 1].get("label", val)
         answers[q.get("question", "")] = val
@@ -529,6 +545,7 @@ def authorized(request: web.Request) -> bool:
 async def hook_endpoint(request: web.Request) -> web.Response:
     if not authorized(request):
         log.warning("rejected hook from %s: bad or missing token", request.remote)
+        AUDIT.write("auth_failure", source=request.remote or "?", path=request.path)
         return web.json_response({"error": "unauthorized"}, status=401)
     chan: Channel = request.app["chan"]
     ev = await request.json()
@@ -537,7 +554,12 @@ async def hook_endpoint(request: web.Request) -> web.Response:
              (ev.get("session_id") or "")[:8])
     store.current_event.set(ev)          # so Channel.ask can attribute prompts
     store.outcome_hint.set(None)
+    store.answer_source.set(None)
     rec = STORE.record(ev, describe(ev))
+    # The full input, not the redacted summary the chat sees: this is evidence.
+    ref = AUDIT.write("request_open", session_id=ev.get("session_id", ""),
+                      cwd=ev.get("cwd", ""), event=name or "?",
+                      tool=ev.get("tool_name"), input=ev.get("tool_input") or {})
     try:
         if name == "SessionEnd":
             out = await on_session_end(chan, ev, None)
@@ -557,7 +579,11 @@ async def hook_endpoint(request: web.Request) -> web.Response:
     except Exception:
         log.exception("handler failed; falling back to terminal")
         out = {}
-    STORE.complete(rec, outcome_of(name, out, store.outcome_hint.get()))
+    outcome = outcome_of(name, out, store.outcome_hint.get())
+    STORE.complete(rec, outcome)
+    AUDIT.write("decision", ref=ref, session_id=ev.get("session_id", ""),
+                outcome=outcome, source=store.answer_source.get(),
+                latency_ms=rec.duration_ms)
     return web.json_response(out)
 
 
@@ -602,6 +628,12 @@ def preflight() -> ssl.SSLContext | None:
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     ssl_ctx = preflight()
+    AUDIT.write("bridge_start", version=__version__, config={
+        "bind": BIND, "port": PORT, "scope": SCOPE, "timeout": WAIT,
+        "tls": bool(TLS_CERT and TLS_KEY), "hook_auth": bool(TOKEN),
+        "admin": ADMIN, "admin_auth": bool(ADMIN_TOKEN),
+        "redact": REDACTOR.enabled, "audit_chained": bool(AUDIT.key),
+    })
     if TG_API_BASE != "https://api.telegram.org":
         log.warning("using non-default Bot API base %s", TG_API_BASE)
     chan = TelegramChannel(TG_BOT_TOKEN, TG_CHAT_ID)
@@ -625,6 +657,8 @@ async def main() -> None:
     try:
         await asyncio.Event().wait()
     finally:
+        AUDIT.write("bridge_stop")
+        AUDIT.close()
         await chan.stop()
         await runner.cleanup()
 

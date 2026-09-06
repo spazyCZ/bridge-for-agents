@@ -27,6 +27,11 @@ current_event: ContextVar[dict | None] = ContextVar("current_event", default=Non
 # terminal, and both return {} to Claude Code.
 outcome_hint: ContextVar[str | None] = ContextVar("outcome_hint", default=None)
 
+# How the decision arrived: button, text, timeout or terminal. The audit log
+# needs this to separate what you approved from what the bridge declined to
+# decide — both of which look like a returned value from the outside.
+answer_source: ContextVar[str | None] = ContextVar("answer_source", default=None)
+
 _TAG = re.compile(r"<[^>]+>")
 
 

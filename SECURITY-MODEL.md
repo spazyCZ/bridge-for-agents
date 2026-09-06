@@ -201,6 +201,7 @@ Beyond that:
 | Binds `127.0.0.1` unless you change it | `BRIDGE_BIND` |
 | Refuses to start on a weak listener: non-loopback with no token, non-loopback with no TLS, or a token under 32 characters | `preflight()` |
 | Recognisable credentials removed from tool inputs before they leave the host, with a count shown in the message; redaction runs **before** the 600-character truncation so a key cannot survive by straddling the cut | `redact.py`, `summarize_counted()` |
+| Every request, decision, rejected update and auth failure appended to a `0600` log with `fsync`, keeping the **full** tool input and how the answer arrived; optionally HMAC-chained so an edited line is detectable | `audit.py` |
 | Bearer token compared with `hmac.compare_digest` | `authorized()` |
 | TLS 1.2 minimum when a cert is configured | `preflight()` |
 | Only `TG_CHAT_ID` is trusted; other chats are dropped | `_on_update` |
@@ -225,6 +226,9 @@ Stated plainly, so you are not surprised:
   truncated at 600 characters, with no surrounding context about why Claude
   wants it. Approving on a phone is approving with less information than
   approving at the terminal.
+- **Someone holding both the audit key and the log.** They can rewrite the
+  chain from scratch. No local-only scheme prevents this; an external anchor is
+  the answer and is not built yet.
 - **Anyone holding your unlocked phone**, or your Telegram account. Two-step
   verification on the account is worth setting.
 - **Telegram itself** — availability or confidentiality.

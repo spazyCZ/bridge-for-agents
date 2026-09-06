@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- Audit log (`audit.py`): append-only JSONL at `BRIDGE_AUDIT`, mode `0600`,
+  `fsync` per write, sequence and chain continuing across restarts. Records
+  `bridge_start` (config fingerprint, no secrets), `request_open` with the
+  **full unredacted** tool input, `decision` with outcome, `source`
+  (`button`/`text`/`timeout`/`terminal`) and latency, `rejected_unsolicited`,
+  `auth_failure` and `bridge_stop`. `BRIDGE_AUDIT_KEY` chains each record with
+  an HMAC; `bridge-audit-verify` recomputes the chain, names the first bad
+  sequence number and exits non-zero. An audit failure never takes a decision
+  down with it.
 - `PLAN.md`: the bridge is a one-way approval channel, and the invariant that
   makes it one. `tests/test_invariant.py` enforces it.
 

@@ -167,6 +167,56 @@ pollers grab updates at random and a button press lands on whichever bridge
 happened to poll first — silently wrong rather than loudly broken. One token,
 one process, always.
 
+## Audit log
+
+Every request and every decision, appended to `BRIDGE_AUDIT` (default
+`~/.local/state/claude-bridge/audit.jsonl`, mode `0600`, `fsync` on each
+write). `BRIDGE_AUDIT=off` disables it.
+
+```json
+{"seq":2,"ts":"2026-09-06T14:22:31.104Z","type":"request_open","session_id":"a1b2…",
+ "cwd":"/repo","event":"PermissionRequest","tool":"Bash","input":{"command":"…"}}
+{"seq":3,"ts":"2026-09-06T14:22:39.208Z","type":"decision","ref":2,
+ "outcome":"allow","source":"button","latency_ms":8104}
+```
+
+Six record types: `bridge_start` (with a config fingerprint, never the
+secrets), `request_open`, `decision`, `rejected_unsolicited`, `auth_failure`,
+`bridge_stop`.
+
+Two things make it evidence rather than a second log:
+
+- **It keeps the full tool input**, not the redacted summary the chat sees. The
+  phone message is a UI; this is the record.
+- **`source` separates what you approved from what the bridge declined to
+  decide** — `button`, `text`, `timeout`, `terminal`. A `{}` returned because
+  nobody answered and a `{}` returned because you chose the terminal are very
+  different events, and only this field tells them apart.
+
+### Tamper-evidence
+
+Set `BRIDGE_AUDIT_KEY` and each record carries `prev` and `mac`, chaining it to
+the one before:
+
+```
+mac = HMAC-SHA256(key, prev || canonical_json(record without prev and mac))
+```
+
+```bash
+bridge-audit-verify                       # the default path
+bridge-audit-verify audit.jsonl --key …   # exits non-zero on any break
+bridge-audit-verify --session a1b2        # read one session's history
+```
+
+A modified or deleted line is named by sequence number. **Keep the key away
+from the log** — different file, different mode, ideally a different owner.
+
+This detects tampering by anyone who does not hold the key. It does **not**
+stop someone holding both the key and the file from rewriting the chain from
+scratch; no local-only scheme can. The honest fix is an external anchor —
+periodically posting the chain head somewhere you do not control — which is
+planned but [not built yet](PLAN.md).
+
 ## Web admin page
 
 A read-only dashboard at `/admin` on the same listener as the hook endpoint:
