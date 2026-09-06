@@ -62,6 +62,7 @@ anything.**
 | [SECURITY.md](SECURITY.md) | reporting a vulnerability, and operating advice |
 | [PLAN.md](PLAN.md) | the one-way invariant and where the project is going |
 | [ROADMAP.md](ROADMAP.md) | what is planned, and what is deliberately not |
+| [skills/](skills/) | two Claude Code skills: `notify-user` for writing a notification, `bridge-ops` for running and diagnosing the bridge |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and the checks CI runs |
 
 ## Security in one paragraph

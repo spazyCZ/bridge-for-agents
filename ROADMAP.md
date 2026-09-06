@@ -13,8 +13,10 @@ Tiers are about **value per unit of effort**, not difficulty. Anything in
 Tier 1 is small and changes the product materially.
 
 Shipped so far: **secret redaction** — recognisable credentials are removed
-from tool inputs before they leave the host. See
-[SECURITY-MODEL.md](SECURITY-MODEL.md#what-is-enforced-today).
+from tool inputs before they leave the host — and the **`bridge-ops` skill**,
+which was on this list. See
+[SECURITY-MODEL.md](SECURITY-MODEL.md#what-is-enforced-today) and
+[skills/bridge-ops/](skills/bridge-ops/).
 
 ## At a glance
 
@@ -25,7 +27,6 @@ question before any code.
 |---|---|---|---|
 | 1 | [Approver allowlist](#approver-identity-tg_allowed_users) | Presses are checked against the *chat*, never the person — every group member can approve, and steer | **S** |
 | 1 | [Auto-allow rules](#auto-allow-rules) | Thirty file reads means thirty notifications; the main reason to give up on it | **M** |
-| 2 | [An "operate the bridge" skill](#an-operate-the-bridge-skill) | 1,466 lines of docs an agent has to guess its way through, plus hazards it will otherwise walk into — [planned](skills/bridge-ops/PLAN.md) | **S** |
 | 2 | [Context on the prompt](#context-why-is-claude-asking) | You approve a one-line command with no idea why it was asked | **S–M** |
 | 2 | [Recover a timed-out prompt](#recovering-a-timed-out-prompt) | After the timeout the call waits on a terminal nobody is watching | **M** |
 | 2 | [Coalesce bursts](#coalescing-bursts) | Five prompts in three seconds should be one message | **M** |
@@ -93,33 +94,6 @@ Two options, cheapest first:
   One extra message per turn.
 - Tail `transcript_path` for the last assistant message before the tool call.
   More precise, more parsing.
-
-### An "operate the bridge" skill
-
-Designed in [skills/bridge-ops/PLAN.md](skills/bridge-ops/PLAN.md), including
-the hazards it exists to prevent and why it should be written after Phases 3
-and 4 rather than before.
-
-`skills/notify-user/` covers writing a notification. Nothing covers running the
-thing. Setup, diagnosis and rotation are spread across README, SECURITY.md,
-SECURITY-MODEL.md, PLAN.md and the test project — fine for a person reading
-them once, useless to an agent asked "the bridge stopped working".
-
-A companion skill should carry the operational knowledge:
-
-- **Setup**: BotFather, chat discovery with the privacy-mode gotcha, Topics and
-  the *Manage Topics* admin right, which topology to pick.
-- **Diagnosis**: nothing arrives (bridge down, wrong chat id, webhook set, a
-  second poller stealing updates), topics not created (bot not admin), prompts
-  timing out, the admin page and audit log as the first things to read.
-- **Rotation**: that `TG_BOT_TOKEN` cannot be rotated through the API, and that
-  the check worth making afterwards is whether the *old* token is dead.
-- **What not to do**: never expose the port, never copy one token to two hosts,
-  never add a chat-initiated command.
-
-Sized **S** because the content already exists and mostly needs collecting;
-the value is that an agent can then act on it rather than a person re-reading
-five files.
 
 ### Recovering a timed-out prompt
 

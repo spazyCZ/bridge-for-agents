@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- `skills/bridge-ops/`: a Claude Code skill for operating and diagnosing the
+  bridge, and for behaving well while gated by it. Leads with five hazards an
+  agent will otherwise hit — printing the audit log, which deliberately holds
+  unredacted secrets; restarting the bridge that is approving the restart;
+  starting a second process on one token; printing the configuration to
+  diagnose it; and adding a chat-initiated feature the invariant refuses.
+  Three reference files carry setup, diagnosis and configuration.
 - `INSTALL.md`: the shortest path from nothing to a prompt on the phone, with
   the hook JSON inline and the TestPyPI extra-index-url that people miss.
 - Publishing workflows. A push to `test` puts a unique `.devN` build on

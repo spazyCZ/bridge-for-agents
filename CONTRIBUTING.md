@@ -40,7 +40,7 @@ match the surrounding style and keep lines within 100 columns.
 | `src/bridge_for_agents/replies.py` | parsing a typed reply into a decision — pure, and fails safe |
 | `src/bridge_for_agents/mcp.py` | MCP stdio server exposing the send-only `notify_user` tool |
 | `skills/notify-user/` | Claude Code skill: how to write a notification, and what never to put in one |
-| `skills/bridge-ops/PLAN.md` | design for a second skill, covering operating and diagnosing the bridge |
+| `skills/bridge-ops/` | Claude Code skill: operating and diagnosing the bridge, and behaving well while gated by it |
 | `src/bridge_for_agents/admin.py` | read-only `/admin` routes and the page |
 | `src/bridge_for_agents/cli.py` | console entry point |
 | `examples/hooks.settings.json` | Claude Code hook configuration to merge into your settings |

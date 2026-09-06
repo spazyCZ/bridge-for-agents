@@ -496,6 +496,12 @@ does require a tunnel (`cloudflared` / ngrok).
 
 ## Troubleshooting
 
+If Claude Code is doing the diagnosing, `skills/bridge-ops/` carries this
+chapter in a form it can act on, plus the hazards it would otherwise walk into
+— chief among them that the audit log holds unredacted secrets and must not be
+printed. Install it with `cp -r skills/bridge-ops ~/.claude/skills/`.
+
+
 Read in this order: the [admin page](#the-admin-page) shows what the bridge
 thinks is happening, the diagnostic log shows what it tried, and the
 [audit log](#audit-log) shows what was actually decided.
