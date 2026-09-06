@@ -1,0 +1,85 @@
+name: Publish to PyPI
+
+# Triggered by a v* tag. The tag and the package version must agree — a tag
+# saying v0.2.0 on a tree that still says 0.1.0 is the classic release mistake,
+# and it is silent unless something checks.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [ci]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/bridge-for-agents
+    permissions:
+      contents: read
+      id-token: write        # Trusted Publishing; no API token is stored
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install build
+
+      - name: Tag must match the package version
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          from pathlib import Path
+
+          tag = os.environ["TAG"].lstrip("v")
+          init = Path("src/bridge_for_agents/__init__.py").read_text()
+          version = re.search(r'^__version__ = "([^"]+)"', init, re.M).group(1)
+          if tag != version:
+              sys.exit(f"::error::tag v{tag} does not match __version__ {version}. "
+                       "Bump the version, or tag the right commit.")
+          print(f"::notice::publishing {version}")
+          PY
+
+      - name: Refuse to republish an existing version
+        run: |
+          python - <<'PY'
+          import json, re, sys, urllib.error, urllib.request
+          from pathlib import Path
+
+          v = re.search(r'^__version__ = "([^"]+)"',
+                        Path("src/bridge_for_agents/__init__.py").read_text(), re.M).group(1)
+          try:
+              urllib.request.urlopen(
+                  f"https://pypi.org/pypi/bridge-for-agents/{v}/json", timeout=15)
+          except urllib.error.HTTPError as e:
+              if e.code == 404:
+                  print(f"::notice::{v} is not on PyPI yet")
+                  sys.exit(0)
+              raise
+          sys.exit(f"::error::{v} is already on PyPI. Versions are immutable there; "
+                   "bump the version.")
+          PY
+
+      - run: python -m build
+
+      - name: Check the metadata before uploading
+        run: pip install twine && twine check dist/*
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -14,12 +14,14 @@ Claude Code ◀──JSON decision── bridge ◀──button/reply── you
 
 ## Setup (5 minutes)
 
+Step by step in [INSTALL.md](INSTALL.md). In brief:
+
 1. **Bot**: `@BotFather` → `/newbot` → copy the token.
 2. **Chat id**: message the bot, then
    `curl https://api.telegram.org/bot<TOKEN>/getUpdates` → `message.chat.id`.
 3. **Run it** (Python 3.11+):
    ```bash
-   pip install .
+   pip install bridge-for-agents
    export TG_BOT_TOKEN=123:abc  TG_CHAT_ID=-1001234567890
    bridge-for-agents
    ```
@@ -54,6 +56,7 @@ anything.**
 
 | | |
 |---|---|
+| [INSTALL.md](INSTALL.md) | the shortest path from nothing to a prompt on your phone |
 | [USER-GUIDE.md](USER-GUIDE.md) | setting up Telegram, deployment, notifications, logs, audit, **troubleshooting** |
 | [SECURITY-MODEL.md](SECURITY-MODEL.md) | who starts each connection, what the chat can and cannot do, a pre-deployment checklist |
 | [SECURITY.md](SECURITY.md) | reporting a vulnerability, and operating advice |

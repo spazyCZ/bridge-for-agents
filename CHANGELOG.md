@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- `INSTALL.md`: the shortest path from nothing to a prompt on the phone, with
+  the hook JSON inline and the TestPyPI extra-index-url that people miss.
+- Publishing workflows. A push to `test` puts a unique `.devN` build on
+  TestPyPI; a `v*` tag publishes to PyPI. Both gate on CI and use Trusted
+  Publishing, so no API token is stored. The release job refuses a tag that
+  disagrees with `__version__`, refuses a version already on PyPI, and runs
+  `twine check` before uploading.
 - `USER-GUIDE.md`: setting up Telegram (including the privacy-mode and
   Manage-Topics traps people hit), deployment, answering prompts,
   notifications, the admin page, logs, audit, securing the channel, and a
@@ -90,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   makes it one. `tests/test_invariant.py` enforces it.
 
 ### Changed
+
+- The package version is now single-sourced from
+  `src/bridge_for_agents/__init__.py`, with `pyproject.toml` reading it. It was
+  duplicated in both, which is how a release ends up disagreeing with its tag.
 
 - **Replying `yes` to a permission used to deny**, with "yes" as the reason.
   It now allows. Hedged affirmatives (`yes but only the first one`) still deny

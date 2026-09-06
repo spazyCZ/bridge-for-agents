@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bridge-for-agents"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Answer Claude Code's questions and permission prompts from Telegram, over its HTTP hooks."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -39,6 +39,11 @@ Homepage = "https://github.com/spazyCZ/bridge-for-agents"
 Repository = "https://github.com/spazyCZ/bridge-for-agents"
 Issues = "https://github.com/spazyCZ/bridge-for-agents/issues"
 Changelog = "https://github.com/spazyCZ/bridge-for-agents/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+# Single source of truth. Duplicating it in pyproject.toml means a release
+# workflow has to patch two files and can leave them disagreeing.
+path = "src/bridge_for_agents/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bridge_for_agents"]

@@ -1,0 +1,60 @@
+name: Publish to TestPyPI
+
+# Every push to `test` publishes a throwaway .devN build, so the install path
+# itself is exercised before a real release depends on it.
+on:
+  push:
+    branches: [test]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [ci]
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/bridge-for-agents
+    permissions:
+      contents: read
+      id-token: write        # Trusted Publishing; no API token is stored
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install build
+
+      - name: Stamp a unique dev version
+        env:
+          RUN: ${{ github.run_number }}
+        run: |
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          # One source of truth: pyproject reads the version from here.
+          init = Path("src/bridge_for_agents/__init__.py")
+          text = init.read_text()
+          base = re.search(r'^__version__ = "([^"]+)"', text, re.M).group(1)
+          major, minor, patch = (int(x) for x in base.split(".")[:3])
+          dev = f"{major}.{minor}.{patch + 1}.dev{os.environ['RUN']}"
+          init.write_text(re.sub(r'^__version__ = "[^"]+"', f'__version__ = "{dev}"',
+                                 text, count=1, flags=re.M))
+          print(f"::notice::TestPyPI version {dev} (base {base})")
+          PY
+
+      - run: python -m build
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
