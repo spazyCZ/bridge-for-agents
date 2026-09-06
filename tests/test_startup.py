@@ -36,52 +36,32 @@ def test_it_names_the_chat_and_whether_it_is_a_forum(bridge, card):
     assert "forum" in card()
 
 
-def test_it_shows_where_the_bridge_listens(card):
-    assert "http://127.0.0.1:8765" in card(BIND="127.0.0.1", PORT=8765)
-
-
-def test_tls_changes_the_scheme(card):
-    assert "https://" in card(ssl_ctx=object(), BIND="0.0.0.0", PORT=8765)
-
-
 def test_it_shows_the_scope_and_the_answer_window(card):
     out = card(SCOPE="project", WAIT=300)
     assert "project" in out and "300s" in out
 
 
-# --- the posture line: OFF must be visible, not implied ------------------
-def test_an_open_configuration_says_so_in_capitals(bridge, card):
-    """Capitalised OFF, because this is the line you scan for a mistake."""
+# --- what it must NOT say ------------------------------------------------
+def test_it_does_not_publish_the_security_posture(bridge, card):
+    """A chat is the wrong place to list which controls are off.
+
+    The full fingerprint goes to the audit log's bridge_start record, which
+    stays on the host.
+    """
     out = card(TOKEN="", ADMIN=True, ADMIN_TOKEN="")
-    assert "hook auth OFF" in out
-    assert "TLS OFF" in out
-    assert "admin on (no token)" in out
+    for leak in ("hook auth", "TLS", "admin", "redaction", "audit", "OFF", "security"):
+        assert leak not in out, f"{leak!r} is posture, not identity"
 
 
-def test_a_locked_down_configuration_reads_as_such(bridge, card, monkeypatch):
-    from bridge_for_agents.audit import AuditLog
-    monkeypatch.setattr(bridge, "AUDIT", AuditLog("/tmp/x.jsonl", "k" * 64))
-    out = card(ssl_ctx=object(), TOKEN="t" * 32, ADMIN=True, ADMIN_TOKEN="a" * 32)
-    assert "hook auth on" in out
-    assert "TLS on" in out
-    assert "admin on" in out and "(no token)" not in out
-    assert "audit chained" in out
-
-
-def test_redaction_off_is_flagged(bridge, card, monkeypatch):
-    from bridge_for_agents.redact import Redactor
-    monkeypatch.setattr(bridge, "REDACTOR", Redactor(enabled=False))
-    assert "redaction OFF" in card()
-
-
-def test_no_audit_is_flagged(bridge, card, monkeypatch):
-    from bridge_for_agents.audit import AuditLog
-    monkeypatch.setattr(bridge, "AUDIT", AuditLog(None))
-    assert "audit OFF" in card()
+def test_it_does_not_publish_the_listener_address(bridge, card):
+    """The bind, the port and http-vs-https all say something about exposure."""
+    out = card(BIND="0.0.0.0", PORT=8765)
+    assert "0.0.0.0" not in out and "8765" not in out
+    assert "http" not in out
 
 
 def test_the_card_carries_no_secrets(bridge, card, monkeypatch):
-    """It goes to the chat. Posture yes, values never."""
+    """It goes to the chat. Identity yes, values never."""
     monkeypatch.setattr(bridge, "TG_BOT_TOKEN", "123456:SUPERSECRETTOKENVALUE")
     out = card(TOKEN="hooktokenhooktokenhooktoken12345", ADMIN_TOKEN="admintoken" * 3)
     assert "SUPERSECRETTOKENVALUE" not in out

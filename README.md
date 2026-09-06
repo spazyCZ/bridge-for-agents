@@ -147,21 +147,23 @@ session thread, so it is somewhere you can find it later:
 
 ```
 🟢 bridge online
-host      rma-ntb
-version   0.1.0
-bot       @rma_cc_private_01_bot
-chat      -1004464194534 · forum
-listening http://127.0.0.1:8765
-scope     session · answer within 300s
-security  hook auth OFF · TLS OFF · admin on (no token) · redaction on · audit OFF
+host     rma-ntb
+version  0.1.0
+bot      @rma_cc_private_01_bot
+chat     -1004464194534 · forum
+scope    session · answer within 300s
 ```
 
 With one bridge per machine sharing a group, this is what tells you which
-machine just came online, and how it is configured. The `security` line spells
-out every posture in one place, with anything open in capitals — it is the line
-to scan when messages start arriving from a bridge you did not expect, or stop
-arriving from one you did. It carries no secret values, only whether each
-control is on.
+machine just came online, which bot it is using and which chat it thinks it is
+serving — enough to catch a bridge running where you did not expect one.
+
+**Identity only, deliberately.** No security posture, no listener address: a
+chat is the wrong place to publish which controls are off, and anyone reading
+it is either you or someone you would rather not hand a list of weaknesses.
+The full configuration fingerprint — bind, port, TLS, hook auth, admin,
+redaction, audit — goes to the [audit log's](#audit-log) `bridge_start` record
+instead, which stays on the host.
 
 A `🔴 bridge offline` note follows on a clean shutdown, so a silent bridge can
 be told from a stopped one.

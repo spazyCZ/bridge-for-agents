@@ -764,31 +764,23 @@ def preflight() -> ssl.SSLContext | None:
 
 
 def startup_card(chan: Any, ssl_ctx: Any) -> str:
-    """Posted to the General topic, so several bridges in one group are telling apart.
+    """Posted to the General topic, so several bridges in one group are told apart.
 
-    Everything here answers "which instance is this, and how is it configured" —
-    the questions you ask when messages arrive from a bridge you did not expect,
-    or stop arriving from one you did.
+    Identity only: which instance is this, which bot, which chat. Deliberately
+    **no security posture** — a chat is the wrong place to publish which
+    controls are off, and anyone reading it is either you or someone you would
+    rather not hand a list of weaknesses. The full configuration fingerprint
+    goes to the audit log's `bridge_start` record instead, which stays on the
+    host.
     """
-    scheme = "https" if ssl_ctx else "http"
-    posture = [
-        f"hook auth {'on' if TOKEN else 'OFF'}",
-        f"TLS {'on' if ssl_ctx else 'OFF'}",
-        f"admin {'on' if ADMIN else 'off'}" + (
-            " (no token)" if ADMIN and not ADMIN_TOKEN else ""),
-        f"redaction {'on' if REDACTOR.enabled else 'OFF'}",
-        "audit " + ("chained" if AUDIT.key else "on" if AUDIT.enabled else "OFF"),
-    ]
     rows = [
         ("host", socket.gethostname()),
         ("version", __version__),
         ("bot", f"@{getattr(chan, 'username', '?')}"),
         ("chat", f"{TG_CHAT_ID}" + (" · forum" if getattr(chan, "is_forum", False) else "")),
-        ("listening", f"{scheme}://{BIND}:{PORT}"),
         ("scope", f"{SCOPE} · answer within {WAIT}s"),
-        ("security", " · ".join(posture)),
     ]
-    body = "\n".join(f"{k:<10}{esc(v)}" for k, v in rows)
+    body = "\n".join(f"{k:<9}{esc(v)}" for k, v in rows)
     return f"🟢 <b>bridge online</b>\n<pre>{body}</pre>"
 
 
