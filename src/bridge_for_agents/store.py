@@ -87,6 +87,22 @@ class Prompt:
 
 
 @dataclass
+class Rejected:
+    """An inbound update that answered nothing.
+
+    Not noise: it means something in the chat tried to start a conversation the
+    bridge never opened. Worth seeing.
+    """
+
+    ts: float
+    kind: str
+    text: str
+
+    def as_dict(self) -> dict:
+        return {"ts": self.ts, "kind": self.kind, "text": self.text}
+
+
+@dataclass
 class Session:
     session_id: str
     cwd: str = ""
@@ -130,6 +146,7 @@ class Store:
         self.sessions: OrderedDict[str, Session] = OrderedDict()
         self.feed: deque[Event] = deque(maxlen=max_feed)
         self.prompts: dict[str, Prompt] = {}
+        self.rejected: deque[Rejected] = deque(maxlen=50)
         self._seq = 0
 
     # -- sessions ----------------------------------------------------------
@@ -188,6 +205,10 @@ class Store:
     def close_prompt(self, rid: str) -> None:
         self.prompts.pop(rid, None)
 
+    # -- unsolicited inbound -----------------------------------------------
+    def reject(self, kind: str, text: str) -> None:
+        self.rejected.append(Rejected(ts=time.time(), kind=kind, text=text[:300]))
+
     # -- views -------------------------------------------------------------
     def snapshot(self, session_id: str | None = None) -> dict[str, Any]:
         sessions = sorted(self.sessions.values(), key=lambda s: s.last_seen, reverse=True)
@@ -201,7 +222,9 @@ class Store:
                 "active": sum(1 for s in self.sessions.values() if not s.ended),
                 "events": self._seq,
                 "waiting": len(self.prompts),
+                "rejected": len(self.rejected),
             },
+            "rejected": [r.as_dict() for r in reversed(self.rejected)][:20],
             "waiting": [p.as_dict() for p in
                         sorted(self.prompts.values(), key=lambda p: p.ts)],
             "sessions": [s.as_dict() for s in sessions],

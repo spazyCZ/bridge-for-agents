@@ -17,7 +17,8 @@ def test_record_creates_and_updates_a_session():
     st.record(ev(), "rm -rf /tmp/x")
     st.record(ev(name="Stop"), "done")
     snap = st.snapshot()
-    assert snap["totals"] == {"sessions": 1, "active": 1, "events": 2, "waiting": 0}
+    assert snap["totals"] == {"sessions": 1, "active": 1, "events": 2,
+                              "waiting": 0, "rejected": 0}
     s = snap["sessions"][0]
     assert s["project"] == "myrepo"
     assert s["counts"] == {"PermissionRequest": 1, "Stop": 1}

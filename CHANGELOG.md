@@ -36,7 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- `PLAN.md`: the bridge is a one-way approval channel, and the invariant that
+  makes it one. `tests/test_invariant.py` enforces it.
+
 ### Changed
+
+- **Breaking:** `/ping` and `/pending` are gone. They were chat-initiated
+  actions — harmless individually, but the precedent that makes the invariant
+  negotiable.
+- `TelegramChannel._on_update` is now a single guard: an update either answers
+  a request that is currently open, or it is dropped and recorded. There is no
+  other branch.
 
 - A prompt nobody answered is now reported as `timeout` on the admin page,
   distinct from `terminal` when *Answer in terminal* was chosen. Both still

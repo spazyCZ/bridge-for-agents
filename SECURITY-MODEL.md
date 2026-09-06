@@ -253,10 +253,21 @@ Stated plainly, so you are not surprised:
 - [ ] Deny is your default for anything surprising. A prompt you did not cause
       means something reached the bridge that you did not start.
 
-## If this changes
+## The invariant this rests on
 
-The roadmap's [Tier 3](ROADMAP.md#tier-3--sending-a-new-prompt-into-a-session)
-would let the bridge start a headless turn with
-`claude -p --resume <session_id>`. That **changes this document materially**:
-the chat would gain the ability to start work, not only answer. It should
-arrive with its own approver allowlist, not before one.
+Everything above follows from one property, stated in [PLAN.md](PLAN.md#the-invariant):
+
+> Every message to the phone originates from a Claude Code hook. Nothing the
+> phone sends can start anything — it can only answer a request that is already
+> open and waiting.
+
+`TelegramChannel._on_update` is the only inbound path and the only place it
+could be broken. It has a single guard — an update either answers a request
+that is currently open, or it is dropped and recorded — and no other branch.
+`tests/test_invariant.py` is the executable statement of that, down to a
+structural check that fails if a second acceptance path is ever added.
+
+Starting a session, resuming one, injecting a prompt, running a command and
+querying state are all **explicit non-goals**, not unbuilt features. If any of
+them arrives, this document is wrong and has to be rewritten before the code
+ships.

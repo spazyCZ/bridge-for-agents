@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
 """
-claude-bridge — MVP
+claude-bridge
+
+A one-way approval channel: Claude Code asks, the phone answers.
+
+    THE INVARIANT
+    Every message to the phone originates from a Claude Code hook. Nothing the
+    phone sends can start anything — it can only answer a request that is
+    already open and waiting.
+
+Everything here either enforces that, records it, or was left out for
+conflicting with it. The omissions are deliberate: there is no way to inject a
+prompt into a session, start one, resume one, run a command, or query state.
+`_on_update` is the only inbound path and the only place the invariant could
+be broken; it has one guard and no other branch. Adding a chat-initiated
+command there — however harmless — is what makes the invariant negotiable.
+
 Relays Claude Code hook events to a chat channel (Telegram for now) and
 returns the user's decision back to Claude Code.
 
@@ -293,35 +308,77 @@ class TelegramChannel(Channel):
                 except Exception:
                     log.exception("update handling failed")
 
-    async def _on_update(self, u: dict) -> None:
+    def _candidate(self, u: dict) -> tuple[str, int, Answer] | None:
+        """What this update *claims* to answer, or None.
+
+        Pure and side-effect free. It deliberately does not decide whether the
+        request is still open — that is the caller's single guard, so there is
+        exactly one place where an update is accepted.
+        """
         if cq := u.get("callback_query"):
             msg = cq.get("message") or {}
             if msg.get("chat", {}).get("id") != self.chat_id:
-                return
-            rid, _, val = cq.get("data", "").partition(":")
-            keyboard = msg.get("reply_markup", {}).get("inline_keyboard", [])
-            label = next((b["text"] for row in keyboard
-                          for b in row if b.get("callback_data") == cq.get("data")), val)
-            ok = self._resolve(rid, ("button", val))
-            await self.call("answerCallbackQuery", callback_query_id=cq["id"],
-                            text=None if ok else "This request already expired")
-            if ok:
-                await self._finalize(msg["message_id"], f"✔ {html.escape(label)}")
-        elif m := u.get("message"):
+                return None
+            rid, _, val = (cq.get("data") or "").partition(":")
+            return rid, msg.get("message_id"), ("button", val)
+
+        if m := u.get("message"):
             if m.get("chat", {}).get("id") != self.chat_id:
-                return
-            reply = m.get("reply_to_message")
-            rid = reply and self.msg_to_rid.get(reply["message_id"])
-            thread = m.get("message_thread_id")
+                return None
+            reply = m.get("reply_to_message") or {}
+            rid = self.msg_to_rid.get(reply.get("message_id"))
             text = (m.get("text") or "").strip()
             if rid and text:
-                if self._resolve(rid, ("text", text)):
-                    await self._finalize(reply["message_id"], f"✔ {html.escape(text[:200])}")
-            elif text == "/ping":
-                await self.send("pong 🟢", thread=thread)
-            elif text == "/pending":
-                await self.send(f"{len(self.pending)} pending request(s) · "
-                                f"{len(self.topics)} open topic(s)", thread=thread)
+                return rid, reply["message_id"], ("text", text)
+        return None
+
+    async def _on_update(self, u: dict) -> None:
+        """The only inbound path. Answer an open request, or drop and record.
+
+        There is no other branch by design — no commands, no queries, nothing
+        the chat can initiate. See the invariant at the top of this module.
+        """
+        cand = self._candidate(u)
+        if cand is None or cand[0] not in self.pending:
+            await self._drop(u)
+            return
+
+        rid, message_id, answer = cand
+        if not self._resolve(rid, answer):      # raced a timeout between check and set
+            await self._drop(u)
+            return
+
+        if cq := u.get("callback_query"):
+            await self.call("answerCallbackQuery", callback_query_id=cq["id"])
+            keyboard = (cq.get("message") or {}).get("reply_markup", {}).get(
+                "inline_keyboard", [])
+            label = next((b["text"] for row in keyboard for b in row
+                          if b.get("callback_data") == cq.get("data")), answer[1])
+        else:
+            label = answer[1][:200]
+        await self._finalize(message_id, f"✔ {html.escape(label)}")
+
+    async def _drop(self, u: dict) -> None:
+        """Nothing was open for this. Record it — it is a signal, not noise.
+
+        Updates from another chat are ignored without a trace and without a
+        reply: they are not evidence about *our* chat, and answering one would
+        confirm the bot is alive to whoever sent it.
+        """
+        if cq := u.get("callback_query"):
+            if (cq.get("message") or {}).get("chat", {}).get("id") != self.chat_id:
+                return
+            kind, text = "callback", cq.get("data", "")
+            # Without this the phone shows a spinner until it times out.
+            await self.call("answerCallbackQuery", callback_query_id=cq["id"],
+                            text="This request already expired")
+        else:
+            m = u.get("message") or {}
+            if m.get("chat", {}).get("id") != self.chat_id:
+                return
+            kind, text = "message", (m.get("text") or "")
+        log.warning("dropped unsolicited %s: %r", kind, text[:120])
+        STORE.reject(kind, text)
 
 
 # --------------------------------------------------------------------------

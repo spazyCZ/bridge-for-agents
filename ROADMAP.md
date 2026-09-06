@@ -4,6 +4,11 @@ Where the bridge goes next, roughly in the order the work is worth doing.
 Nothing here is committed to a release; it is a record of what has been
 considered and why.
 
+**[PLAN.md](PLAN.md) sets the direction and supersedes this file where the two
+disagree.** The bridge is a one-way approval channel: nothing the chat sends
+can start anything. Items that conflicted with that invariant have been moved
+out of the tiers below and into *Deliberately not planned*, with the reason.
+
 Tiers are about **value per unit of effort**, not difficulty. Anything in
 Tier 1 is small and changes the product materially.
 
@@ -23,12 +28,9 @@ question before any code.
 | 2 | [Context on the prompt](#context-why-is-claude-asking) | You approve a one-line command with no idea why it was asked | **S–M** |
 | 2 | [Recover a timed-out prompt](#recovering-a-timed-out-prompt) | After the timeout the call waits on a terminal nobody is watching | **M** |
 | 2 | [Coalesce bursts](#coalescing-bursts) | Five prompts in three seconds should be one message | **M** |
-| 3 | [Send a new prompt](#tier-3--sending-a-new-prompt-into-a-session) | Turns the bridge from reactive to interactive — and changes the security model | **L** |
 | 4 | systemd unit and Dockerfile | Answers "how do I keep this running" | **S** |
 | 4 | Metrics on the admin page | `duration_ms` and outcomes are already recorded; shows whether rules are tuned | **S** |
-| 4 | Webhook mode | Lifts one-poller-per-token, but needs public inbound | **L** |
 | 5 | Edit the message instead of replying | Halves chat volume | **S** |
-| 5 | `/sessions`, `/mute`, `/deny_all` | A panic button, and a way to look around | **S** |
 | 5 | Silence non-decisions | Ring for permissions, not for `Stop` | **S** |
 | 5 | `multiSelect` questions | Currently answered single-choice | **M** |
 | 5 | Show more than 600 characters | You approve a truncated command | **S** |
@@ -107,20 +109,6 @@ Five permissions in three seconds should arrive as one message with five rows.
 A short debounce in `ask`, keyed by session. The difference between a usable
 and a hostile notification pattern.
 
-## Tier 3 — sending a new prompt into a session
-
-The bridge is strictly reactive: it can answer questions, never ask them.
-Of the two approaches, `claude -p --resume <session_id> "<text>"` is the
-better one — `session_id` is already in every hook payload and in the store,
-whereas `tmux send-keys` depends on how the user happened to launch Claude
-Code and breaks when they did not use tmux.
-
-The honest caveat: `--resume` runs a separate headless turn rather than typing
-into the live interactive session, so a reply forks the conversation instead of
-continuing it. That may still be what people want — "run the tests again",
-"what is the status" — but it should be presented as a headless side channel,
-not as remote typing.
-
 ## Tier 4 — operational
 
 - **`systemd --user` unit and a Dockerfile** in `contrib/`, with
@@ -130,22 +118,38 @@ not as remote typing.
   outcomes; allow/deny ratio, median response time and timed-out count are a
   few lines of aggregation over data that is already there — and they tell you
   whether the auto-allow rules are tuned correctly.
-- **Webhook mode** would lift the one-poller-per-token limit, but needs public
-  inbound and therefore a tunnel, the same requirement as the Twilio channel.
-  Not worth it until someone asks.
 
 ## Tier 5 — polish
 
 | Now | Better |
 |---|---|
 | `_finalize` posts a second message per answer | Edit the original message instead — halves chat volume |
-| Only `/ping` and `/pending` | Add `/sessions`, `/mute`, and `/deny_all` as a panic button |
 | Every event notifies equally | `disable_notification` on `Stop` and `Notification`; ring only for permissions |
 | `multiSelect` answered single-choice | Toggle-style buttons with a Done row |
 | Tool input truncated at 600 characters | A **show more** button, or the remainder on the admin page |
 | Free text can only deny | Approve-with-edit — `PreToolUse` accepts `updatedInput` |
 
 ## Deliberately not planned
+
+### Anything the chat can initiate
+
+Cut by [the invariant](PLAN.md#the-invariant), not by cost:
+
+- **Sending a new prompt into a session**, via `claude -p --resume` or
+  `tmux send-keys`. It was Tier 3 here; it is now an explicit non-goal. Other
+  tools exist to do this, and not doing it is what this one is for.
+- **Chat commands** — `/sessions`, `/mute`, `/deny_all`, and the `/ping` and
+  `/pending` that used to exist. Harmless individually; collectively they are
+  the precedent that makes the invariant negotiable.
+- **Webhook mode.** It would lift the one-poller-per-token limit, but it means
+  a public inbound endpoint. Outbound-only polling is a security property here,
+  not an implementation detail.
+
+**Undecided: approve-with-edit.** `PreToolUse` accepts `updatedInput`, so the
+chat could modify a command before allowing it. The request is already open, so
+it is formally an answer — but it lets the phone determine *what runs*, not
+merely whether it runs. It stays in Tier 5 pending a decision.
+
 
 - **Persisting the admin history.** The events carry commands, file paths and
   prompts; keeping them in memory only is a decision, not an omission. See

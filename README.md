@@ -23,7 +23,7 @@ Claude Code ◀──JSON decision── bridge ◀──button/reply── you
    export TG_BOT_TOKEN=123:abc  TG_CHAT_ID=-1001234567890
    bridge-for-agents                   # or: python -m bridge_for_agents
    ```
-   You should get "🟢 claude-bridge online" on Telegram. `/ping` answers `pong`.
+   You should get "🟢 claude-bridge online" on Telegram.
 4. **Hook it up**: merge `examples/hooks.settings.json` into `~/.claude/settings.json`
    (or a project's `.claude/settings.json`; with `CLAUDE_CONFIG_DIR` isolation
    put it in that config dir's `settings.json`). Check with `/hooks` in Claude Code.
