@@ -58,6 +58,16 @@ proxy in front and keep the bridge on loopback if you need more.
   settings file and never in git.
 - Rotate `BRIDGE_TOKEN` by restarting the bridge and updating each host. There
   is no rotation grace period, so rotate when nothing is mid-approval.
+- **Rotating `TG_BOT_TOKEN` cannot be automated.** The Bot API has no method to
+  revoke or regenerate a token; only `@BotFather` can, and it is a chat rather
+  than an API. Driving a user account over MTProto to talk to it is technically
+  possible and a bad trade: you would store a full account session — able to
+  read every chat and act as you — in order to rotate a bot token. Do the
+  `/revoke` by hand and automate the rest.
+- After revoking, **check the old token is actually dead** (`getMe` with it
+  should fail). A working new token proves nothing on its own: `/token` hands
+  you the existing one, while `/revoke` replaces it. Confusing the two leaves
+  two live keys and no rotation.
 - `pki/`, `*.key` and `*.crt` are gitignored. Keep `ca.key` offline.
 - Leave `BRIDGE_ADMIN` off where you do not need it, and give the admin page
   its own token rather than reusing `BRIDGE_TOKEN` when you can.
