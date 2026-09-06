@@ -93,11 +93,13 @@ Env:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hmac
 import html
 import json
 import logging
 import os
+import socket
 import ssl
 import sys
 import time
@@ -182,6 +184,8 @@ class TelegramChannel(Channel):
         self.topics: dict[str, int] = {}          # scope key -> message_thread_id
         self.topic_locks: dict[str, asyncio.Lock] = {}
         self.is_forum = False
+        self.username = ""
+        self.conflict_warned = False
         self.http: ClientSession | None = None
         self._poll_task: asyncio.Task | None = None
 
@@ -190,6 +194,8 @@ class TelegramChannel(Channel):
         # trust_env: pick up HTTPS_PROXY / NO_PROXY from the environment
         self.http = ClientSession(timeout=ClientTimeout(total=45), trust_env=True)
         await self.call("deleteWebhook")  # long polling needs no webhook
+        me = await self.call("getMe") or {}
+        self.username = me.get("username", "?")
         chat = await self.call("getChat", chat_id=self.chat_id) or {}
         self.is_forum = bool(chat.get("is_forum"))
         if SCOPE != "flat" and not self.is_forum:
@@ -275,7 +281,21 @@ class TelegramChannel(Channel):
         async with self.http.post(f"{self.api}/{method}", json=params) as r:
             data = await r.json()
         if not data.get("ok"):
-            log.warning("telegram %s failed: %s", method, data.get("description"))
+            if data.get("error_code") == 409:
+                # Two bridges are polling this bot token. They steal each
+                # other's updates at random, so a button press lands on
+                # whichever polled first — wrong rather than broken.
+                log.error("CONFLICT: another bridge is polling this bot token. "
+                          "One token, one process — see the README on deployment.")
+                if not self.conflict_warned:
+                    self.conflict_warned = True
+                    asyncio.create_task(self.send(
+                        f"⚠️ <b>Another bridge is polling @{esc(self.username)}</b>\n"
+                        f"Two processes share this bot token, so answers will land on "
+                        f"whichever polled first. Stop one of them.\n"
+                        f"<code>{esc(socket.gethostname())}</code> is one of them."))
+            else:
+                log.warning("telegram %s failed: %s", method, data.get("description"))
             return None
         return data.get("result")
 
@@ -743,6 +763,35 @@ def preflight() -> ssl.SSLContext | None:
     return ctx
 
 
+def startup_card(chan: Any, ssl_ctx: Any) -> str:
+    """Posted to the General topic, so several bridges in one group are telling apart.
+
+    Everything here answers "which instance is this, and how is it configured" —
+    the questions you ask when messages arrive from a bridge you did not expect,
+    or stop arriving from one you did.
+    """
+    scheme = "https" if ssl_ctx else "http"
+    posture = [
+        f"hook auth {'on' if TOKEN else 'OFF'}",
+        f"TLS {'on' if ssl_ctx else 'OFF'}",
+        f"admin {'on' if ADMIN else 'off'}" + (
+            " (no token)" if ADMIN and not ADMIN_TOKEN else ""),
+        f"redaction {'on' if REDACTOR.enabled else 'OFF'}",
+        "audit " + ("chained" if AUDIT.key else "on" if AUDIT.enabled else "OFF"),
+    ]
+    rows = [
+        ("host", socket.gethostname()),
+        ("version", __version__),
+        ("bot", f"@{getattr(chan, 'username', '?')}"),
+        ("chat", f"{TG_CHAT_ID}" + (" · forum" if getattr(chan, "is_forum", False) else "")),
+        ("listening", f"{scheme}://{BIND}:{PORT}"),
+        ("scope", f"{SCOPE} · answer within {WAIT}s"),
+        ("security", " · ".join(posture)),
+    ]
+    body = "\n".join(f"{k:<10}{esc(v)}" for k, v in rows)
+    return f"🟢 <b>bridge online</b>\n<pre>{body}</pre>"
+
+
 async def main() -> None:
     access_log = logs.setup(LOG_LEVEL, LOG_FILE, LOG_ACCESS, REDACTOR)
     log.debug("configuration: bind=%s port=%s scope=%s timeout=%s admin=%s audit=%s",
@@ -774,10 +823,13 @@ async def main() -> None:
     if ADMIN:
         log.info("admin page on %s://%s:%d/admin (auth: %s, history in memory only)",
                  scheme, BIND, PORT, "on" if ADMIN_TOKEN else "OFF")
-    await chan.send("🟢 claude-bridge online")
+    await chan.send(startup_card(chan, ssl_ctx))
     try:
         await asyncio.Event().wait()
     finally:
+        with contextlib.suppress(Exception):
+            await chan.send(f"🔴 <b>bridge offline</b> · "
+                            f"<code>{esc(socket.gethostname())}</code>")
         AUDIT.write("bridge_stop")
         AUDIT.close()
         await chan.stop()

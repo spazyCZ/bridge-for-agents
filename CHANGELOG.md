@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- The startup message is now an identifying card in the group's **General**
+  topic: host, version, bot username, chat id and whether it is a forum, the
+  listener, the scope and answer window, and a security line showing hook auth,
+  TLS, admin, redaction and audit — anything open in capitals, no secret values.
+  With one bridge per machine sharing a group, this is what says which one came
+  online. A `🔴 bridge offline` note follows a clean shutdown.
+- A `getUpdates` 409 now logs an explicit error and warns the group once that
+  two bridges share the bot token. It previously surfaced as a generic warning,
+  leaving the one misconfiguration that is wrong rather than broken invisible.
 - Typed replies are parsed rather than passed through (`replies.py`). `y`/`yes`
   allows and `n`/`no` denies, a negative keeps its reason (`no, wrong branch`),
   and on a question a leading option number picks that option with anything

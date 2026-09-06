@@ -140,6 +140,37 @@ flowchart TD
     class SHAREDREQ warn
 ```
 
+### Knowing which bridge you are looking at
+
+On startup each bridge posts a card to the group's **General** topic — not to a
+session thread, so it is somewhere you can find it later:
+
+```
+🟢 bridge online
+host      rma-ntb
+version   0.1.0
+bot       @rma_cc_private_01_bot
+chat      -1004464194534 · forum
+listening http://127.0.0.1:8765
+scope     session · answer within 300s
+security  hook auth OFF · TLS OFF · admin on (no token) · redaction on · audit OFF
+```
+
+With one bridge per machine sharing a group, this is what tells you which
+machine just came online, and how it is configured. The `security` line spells
+out every posture in one place, with anything open in capitals — it is the line
+to scan when messages start arriving from a bridge you did not expect, or stop
+arriving from one you did. It carries no secret values, only whether each
+control is on.
+
+A `🔴 bridge offline` note follows on a clean shutdown, so a silent bridge can
+be told from a stopped one.
+
+**If two bridges ever share a bot token**, `getUpdates` returns 409 and the
+group gets a one-time warning naming the bot and one of the hosts. That
+misconfiguration is otherwise invisible: both pollers take updates at random,
+so an answer lands on whichever polled first — wrong rather than broken.
+
 ### One machine — the default
 
 ```
