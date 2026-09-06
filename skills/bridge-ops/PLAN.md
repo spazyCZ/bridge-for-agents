@@ -59,12 +59,74 @@ bridge more useful" may add a chat command or a tool that reads replies. The
 skill must carry the invariant and the reason, so the agent argues back instead
 of helpfully breaking it.
 
+## Using the bridge, not only running it
+
+Operating is the half with obvious triggers. The other half is how an agent
+should *behave* while a bridge is gating it, and it is worth more than it
+looks: the person answering is on a phone, away from the terminal, reading one
+line.
+
+**Write commands that can be approved.** What reaches the phone is a single
+line, truncated at 600 characters, with credentials redacted. A long shell
+pipeline arrives as an unreadable blob, and the right response to an
+unreadable blob is Deny. So `pytest tests/auth -q` as its own step beats the
+same work folded into a chain of five commands — not for style, but because
+legible steps are the ones that come back approved. If a command cannot be made
+to read clearly in one line, saying what it does first, in the terminal, is
+what makes it approvable.
+
+**A denial with a reason is an instruction, not a failure.** Free text typed on
+the phone arrives as the deny `message`, and it is the user's own words: *"not
+on production"*, *"use the staging database"*. Re-running the same command is
+the wrong move. Adapt to what they said, and if it is ambiguous, that is worth
+a question rather than a guess.
+
+**Questions cost a notification and a wait.** `AskUserQuestion` goes to the
+phone the same way. Three questions in a row is three buzzes and three waits;
+one question with the real decision in it is far better. Batch them, and ask
+only what actually changes what you do next.
+
+**Prefer reversible work while they are away.** A prompt that times out falls
+back to a terminal nobody is watching, and the session stalls. Doing the
+reversible parts and reporting what remains beats stopping at the first thing
+that needs a decision.
+
+**Know when the bridge is even there.** Hooks in `settings.json` pointing at
+`/hook`, a `bridge-notify` MCP server, a running daemon on `127.0.0.1:8765`.
+When it is not configured, none of the above applies and permission prompts are
+appearing in the terminal as usual.
+
+### The awkward part: this half triggers badly
+
+Operating advice is looked up — "the bridge is broken" is a question someone
+asks. Usage advice is ambient; nobody types "how should I behave while a bridge
+gates me". A skill that only loads when asked cannot deliver it at the moment
+it matters.
+
+Three options, none clean:
+
+1. **Accept partial triggering.** It fires on the questions that do get asked —
+   "why was my command denied", "why is this taking so long" — and is absent
+   otherwise. Honest, and covers the after-the-fact cases.
+2. **Fold the durable points into `notify-user`**, which already triggers
+   whenever an agent is reporting to an absent user — the same situation.
+   Cheap, but stretches that skill's remit.
+3. **Put them where they are always in context**: a short block in the
+   project's `CLAUDE.md`, generated or copy-pasteable, that the bridge's own
+   install guide offers. Costs a little context in every session, always
+   present when it counts.
+
+Leaning towards 1 plus 3: the skill carries the full reasoning for when someone
+asks, and `INSTALL.md` offers a five-line `CLAUDE.md` block for the two points
+that must be present rather than retrievable — write approvable commands, and
+treat a deny reason as an instruction.
+
 ## Scope
 
 **In:** installing and configuring; starting, stopping and restarting; reading
 the admin page, the diagnostic log and the audit log; diagnosing the common
-failures; token rotation; the deployment topologies; what to expect while a
-prompt is pending.
+failures; token rotation; the deployment topologies; and the usage half above —
+how to behave while a bridge is gating you.
 
 **Out:** writing notifications — `notify-user` already covers that, and it
 triggers on a completely different moment ("tell the user X" against "the
@@ -75,7 +137,7 @@ which is CONTRIBUTING's job.
 
 ```
 skills/bridge-ops/
-├── SKILL.md              # triggers, hazards, and the diagnostic procedure
+├── SKILL.md              # triggers, hazards, the diagnostic procedure, usage
 └── references/
     ├── setup.md          # BotFather, the group, topics, privacy mode
     ├── diagnose.md       # symptom → distinguishing check → fix
@@ -105,8 +167,9 @@ Draft:
 > whenever prompts are not reaching the phone, the bridge will not start or has
 > stopped, topics are not being created, a bot token needs rotating, or someone
 > is configuring Telegram approvals for Claude Code — and whenever a question
-> is about the bridge's admin page, audit log or hook configuration, even if
-> the bridge is not named.
+> is about the bridge's admin page, audit log or hook configuration, or about
+> why a command was denied or is waiting for approval, even if the bridge is
+> not named.
 
 To be optimised against real queries rather than guessed at, using
 skill-creator's description loop.
@@ -124,7 +187,9 @@ user means macOS notifications.
 
 **Does it help?** A handful of realistic scenarios run with and without the
 skill — a broken setup where the bot is not an admin, an empty phone where the
-bridge is not running, a request to rotate the token. Judged on: did it find
+bridge is not running, a request to rotate the token, and one usage case: a
+command denied with "not on production", where the right behaviour is to adapt
+rather than retry. Judged on: did it find
 the cause, did it avoid the hazards above, and did it get there in fewer steps.
 The hazard checks are the objective ones — did the transcript end up containing
 a secret, did it start a second bridge — and those are worth asserting rather
