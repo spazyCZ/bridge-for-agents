@@ -76,6 +76,15 @@ Env:
   BRIDGE_AUDIT_KEY
                  when set, each record is chained with an HMAC so an edited or
                  deleted line is detectable. Keep it away from the log itself
+  BRIDGE_LOG_LEVEL
+                 DEBUG | INFO | WARNING | ERROR, default INFO
+  BRIDGE_LOG_FILE
+                 also write the diagnostic log here, mode 0600, rotating at
+                 10 MB with 5 kept. Secrets are redacted from it, unlike the
+                 audit log
+  BRIDGE_LOG_ACCESS
+                 set to 1 for aiohttp's per-request access log. Off by default:
+                 the admin page polls every 2 s and would drown everything else
 """
 from __future__ import annotations
 
@@ -93,7 +102,7 @@ from typing import Any
 
 from aiohttp import ClientSession, ClientTimeout, web
 
-from . import __version__, admin, audit, redact, store
+from . import __version__, admin, audit, logs, redact, store
 
 log = logging.getLogger("bridge")
 
@@ -110,6 +119,9 @@ TLS_KEY = os.environ.get("BRIDGE_TLS_KEY", "")
 INSECURE = os.environ.get("BRIDGE_INSECURE") == "1"
 PORT = int(os.environ.get("BRIDGE_PORT", "8765"))
 WAIT = int(os.environ.get("BRIDGE_TIMEOUT", "540"))
+LOG_LEVEL = os.environ.get("BRIDGE_LOG_LEVEL", "INFO")
+LOG_FILE = os.environ.get("BRIDGE_LOG_FILE", "")
+LOG_ACCESS = os.environ.get("BRIDGE_LOG_ACCESS") == "1"
 ADMIN = os.environ.get("BRIDGE_ADMIN") == "1"
 ADMIN_TOKEN = os.environ.get("BRIDGE_ADMIN_TOKEN", "") or TOKEN
 HISTORY = int(os.environ.get("BRIDGE_ADMIN_HISTORY", "200"))
@@ -249,6 +261,8 @@ class TelegramChannel(Channel):
     async def call(self, method: str, **params: Any) -> Any:
         assert self.http
         params = {k: v for k, v in params.items() if v is not None}
+        log.debug("telegram -> %s %s", method, {k: v for k, v in params.items()
+                                                 if k not in ("text", "reply_markup")})
         async with self.http.post(f"{self.api}/{method}", json=params) as r:
             data = await r.json()
         if not data.get("ok"):
@@ -265,6 +279,7 @@ class TelegramChannel(Channel):
     async def ask(self, text: str, options: list[tuple[str, str]], timeout: int,
                   thread: Any = None) -> Answer | None:
         rid = uuid.uuid4().hex[:8]
+        log.debug("asking %s (%d options, %ds) in thread %s", rid, len(options), timeout, thread)
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         self.pending[rid] = fut
         STORE.open_prompt(rid, text, [lbl for lbl, _ in options], timeout)
@@ -349,6 +364,7 @@ class TelegramChannel(Channel):
         There is no other branch by design — no commands, no queries, nothing
         the chat can initiate. See the invariant at the top of this module.
         """
+        log.debug("telegram <- update %s", u.get("update_id"))
         cand = self._candidate(u)
         if cand is None or cand[0] not in self.pending:
             await self._drop(u)
@@ -581,6 +597,8 @@ async def hook_endpoint(request: web.Request) -> web.Response:
         out = {}
     outcome = outcome_of(name, out, store.outcome_hint.get())
     STORE.complete(rec, outcome)
+    log.info("hook %s -> %s via %s in %sms", name, outcome,
+             store.answer_source.get() or "-", rec.duration_ms)
     AUDIT.write("decision", ref=ref, session_id=ev.get("session_id", ""),
                 outcome=outcome, source=store.answer_source.get(),
                 latency_ms=rec.duration_ms)
@@ -626,7 +644,9 @@ def preflight() -> ssl.SSLContext | None:
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    access_log = logs.setup(LOG_LEVEL, LOG_FILE, LOG_ACCESS, REDACTOR)
+    log.debug("configuration: bind=%s port=%s scope=%s timeout=%s admin=%s audit=%s",
+              BIND, PORT, SCOPE, WAIT, ADMIN, AUDIT.path)
     ssl_ctx = preflight()
     AUDIT.write("bridge_start", version=__version__, config={
         "bind": BIND, "port": PORT, "scope": SCOPE, "timeout": WAIT,
@@ -644,7 +664,7 @@ async def main() -> None:
     app.router.add_get("/health", health)
     if ADMIN:
         admin.attach(app, STORE, ADMIN_TOKEN)
-    runner = web.AppRunner(app)
+    runner = web.AppRunner(app, access_log=access_log)
     await runner.setup()
     await web.TCPSite(runner, BIND, PORT, ssl_context=ssl_ctx).start()
     scheme = "https" if ssl_ctx else "http"

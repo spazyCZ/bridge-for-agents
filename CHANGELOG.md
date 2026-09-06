@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- Diagnostic logging (`logs.py`), distinct from the audit log and with the
+  opposite rule about secrets: `BRIDGE_LOG_LEVEL`, `BRIDGE_LOG_FILE` (mode
+  `0600`, rotating at 10 MB, 5 kept, permissions preserved across rollover) and
+  `BRIDGE_LOG_ACCESS`. Every record passes through the redactor, applied as a
+  logging filter so it covers all handlers. DEBUG now reports Telegram calls,
+  inbound update ids and prompts opening; previously the level was fixed at
+  INFO and there were no debug statements at all.
 - Audit log (`audit.py`): append-only JSONL at `BRIDGE_AUDIT`, mode `0600`,
   `fsync` per write, sequence and chain continuing across restarts. Records
   `bridge_start` (config fingerprint, no secrets), `request_open` with the
@@ -49,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   makes it one. `tests/test_invariant.py` enforces it.
 
 ### Changed
+
+- aiohttp's per-request access log is **off by default**. The admin page polls
+  every two seconds, so it wrote about 1,800 lines an hour. `BRIDGE_LOG_ACCESS=1`
+  restores it.
 
 - **Breaking:** `/ping` and `/pending` are gone. They were chat-initiated
   actions — harmless individually, but the precedent that makes the invariant

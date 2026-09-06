@@ -167,6 +167,35 @@ pollers grab updates at random and a button press lands on whichever bridge
 happened to poll first — silently wrong rather than loudly broken. One token,
 one process, always.
 
+## Logs
+
+Two logs, opposite rules — confusing them would be a bug.
+
+| | Diagnostic log | [Audit log](#audit-log) |
+|---|---|---|
+| For | working out what the daemon is doing | evidence of what was asked and approved |
+| Secrets | **redacted** | **kept in full** — that is the point |
+| Where | stderr, and `BRIDGE_LOG_FILE` if set | `BRIDGE_AUDIT` |
+| Safe to ship elsewhere | yes | only where you would keep the commands themselves |
+
+```bash
+export BRIDGE_LOG_LEVEL=DEBUG            # DEBUG | INFO | WARNING | ERROR
+export BRIDGE_LOG_FILE=~/bridge.log      # mode 0600, rotates at 10 MB, 5 kept
+export BRIDGE_LOG_ACCESS=1               # aiohttp per-request log, off by default
+```
+
+Everything written to the diagnostic log passes through the same redactor the
+chat messages use, applied as a logging *filter* so it covers every handler and
+cannot be bypassed by adding another one. `BRIDGE_LOG_FILE` is `0600`, and stays
+`0600` across rotations.
+
+`BRIDGE_LOG_ACCESS` is off by default on purpose: the admin page polls every two
+seconds, so aiohttp's access log would write roughly 1,800 lines an hour saying
+so and bury everything else.
+
+At `DEBUG` you additionally get every Telegram API call (without message bodies
+or keyboards), each inbound update id, and each prompt as it opens.
+
 ## Audit log
 
 Every request and every decision, appended to `BRIDGE_AUDIT` (default
