@@ -61,10 +61,38 @@ of helpfully breaking it.
 
 ## Using the bridge, not only running it
 
-Operating is the half with obvious triggers. The other half is how an agent
-should *behave* while a bridge is gating it, and it is worth more than it
-looks: the person answering is on a phone, away from the terminal, reading one
-line.
+Two people are using this thing and the skill has to serve both: the person
+answering on a phone, and the agent being gated. They need different things,
+and an agent that only knows its own half will set the wrong expectations.
+
+### The user's half — and helping them with it
+
+The agent is usually the one who set the bridge up, so it is also the one who
+should explain how to live with it. Worth being able to say, without being
+asked:
+
+- **Deny is the safe answer.** A prompt you did not expect means something
+  reached the bridge you did not start. Denying costs a retry; approving costs
+  whatever the command does.
+- **Typing beats tapping when there is a nuance.** `y` and `n` work, but so
+  does *"no, use staging"* — the text arrives as the reason and the agent
+  reads it. On a question, `2 - but check the migration first` picks option two
+  and carries the caveat. That is how you steer from a phone without opening a
+  laptop.
+- **Ignoring a prompt is a valid answer.** After `BRIDGE_TIMEOUT` it returns to
+  the terminal, where it waits for you. Nothing is approved by silence.
+- **One topic per session** is how to follow two agents at once, and closed
+  topics are the finished ones.
+- **The admin page answers "what is it waiting for"** without unlocking a
+  phone, and the audit log answers "what did I approve last Tuesday".
+
+Setting expectations matters as much as the mechanics. Someone who has just
+wired this up does not yet know that a `Read` of every file will buzz them
+thirty times, or that a timed-out prompt is not lost. An agent that says so
+up front saves the first bad afternoon — and knows the fix is
+`BRIDGE_AUTO_ALLOW`, once that exists.
+
+### Claude Code's half — behaving well while gated
 
 **Write commands that can be approved.** What reaches the phone is a single
 line, truncated at 600 characters, with credentials redacted. A long shell
@@ -98,10 +126,13 @@ appearing in the terminal as usual.
 
 ### The awkward part: this half triggers badly
 
-Operating advice is looked up — "the bridge is broken" is a question someone
-asks. Usage advice is ambient; nobody types "how should I behave while a bridge
-gates me". A skill that only loads when asked cannot deliver it at the moment
-it matters.
+The user's half is fine: "how do I answer these", "why did it stop asking me"
+are things people ask, and a skill that loads on the question works.
+
+The agent's half is not. Operating advice is looked up; behavioural advice is
+ambient, and nobody types "how should I behave while a bridge gates me". A
+skill that loads on request cannot deliver it at the moment it matters — which
+is every tool call, silently.
 
 Three options, none clean:
 
@@ -119,7 +150,8 @@ Three options, none clean:
 Leaning towards 1 plus 3: the skill carries the full reasoning for when someone
 asks, and `INSTALL.md` offers a five-line `CLAUDE.md` block for the two points
 that must be present rather than retrievable — write approvable commands, and
-treat a deny reason as an instruction.
+treat a deny reason as an instruction. Everything the *user* needs stays in the
+skill, where a question will reach it.
 
 ## Scope
 
@@ -187,9 +219,11 @@ user means macOS notifications.
 
 **Does it help?** A handful of realistic scenarios run with and without the
 skill — a broken setup where the bot is not an admin, an empty phone where the
-bridge is not running, a request to rotate the token, and one usage case: a
-command denied with "not on production", where the right behaviour is to adapt
-rather than retry. Judged on: did it find
+bridge is not running, a request to rotate the token, and one from each
+usage half: a command denied with "not on production", where the right
+behaviour is to adapt rather than retry; and "how do I answer these on my
+phone", where a good answer covers typing a reason, ignoring a prompt safely,
+and where to look when several sessions are running. Judged on: did it find
 the cause, did it avoid the hazards above, and did it get there in fewer steps.
 The hazard checks are the objective ones — did the transcript end up containing
 a secret, did it start a second bridge — and those are worth asserting rather
