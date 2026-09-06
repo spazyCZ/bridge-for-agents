@@ -115,6 +115,21 @@ Code prompts in your terminal exactly as it would have.
 | `BRIDGE_TIMEOUT=120` | shorter wait before falling back to the terminal |
 | `BRIDGE_SCOPE=project` | one topic per repository instead of per session |
 
+## The skills
+
+Two Claude Code skills ship with the package. `notify-user` covers writing a
+notification and what must never go in one; `bridge-ops` covers running and
+diagnosing the bridge, and how to behave while it is gating you.
+
+```bash
+bridge-for-agents install-skills     # into ~/.claude/skills
+bridge-for-agents list-skills        # what this build carries
+```
+
+Installing again leaves anything already there alone, so an edited skill
+survives an upgrade; `--force` replaces them. Start a new Claude Code session
+to pick them up.
+
 Notifications from a running agent need one more step:
 
 ```bash

@@ -278,7 +278,7 @@ a notification and, more importantly, what must never go in one — credentials,
 file contents, stack traces, customer data. Install it with:
 
 ```bash
-cp -r skills/notify-user ~/.claude/skills/
+bridge-for-agents install-skills
 ```
 
 Redaction is a backstop, not a licence. It knows common key shapes; it does not
@@ -499,7 +499,7 @@ does require a tunnel (`cloudflared` / ngrok).
 If Claude Code is doing the diagnosing, `skills/bridge-ops/` carries this
 chapter in a form it can act on, plus the hazards it would otherwise walk into
 — chief among them that the audit log holds unredacted secrets and must not be
-printed. Install it with `cp -r skills/bridge-ops ~/.claude/skills/`.
+printed. Install it with `bridge-for-agents install-skills`.
 
 
 Read in this order: the [admin page](#the-admin-page) shows what the bridge

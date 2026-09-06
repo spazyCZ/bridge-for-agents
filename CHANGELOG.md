@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ROADMAP.md`, and a README **Deployment** section: how bots, groups and
   bridges map onto machines, and which topology to pick.
 
+- `bridge-for-agents install-skills` and `list-skills`. The skills now travel
+  inside the wheel, so a `pip install` user can get them at all — before this
+  they existed only in a repository they had no reason to clone, while the docs
+  told them to `cp` from it. Installing twice leaves an edited skill alone
+  unless `--force` is given, and a checkout falls back to the repository root,
+  so contributors can install the skills they are editing.
 - `skills/bridge-ops/`: a Claude Code skill for operating and diagnosing the
   bridge, and for behaving well while gated by it. Leads with five hazards an
   agent will otherwise hit — printing the audit log, which deliberately holds

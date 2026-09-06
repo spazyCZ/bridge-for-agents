@@ -48,6 +48,17 @@ path = "src/bridge_for_agents/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/bridge_for_agents"]
 
+# The skills are data, not code, but they have to travel with the wheel —
+# otherwise `pip install` gives you a daemon and no way to get the skills that
+# tell Claude Code how to drive it. `bridge-for-agents install-skills` copies
+# them out of here.
+[tool.hatch.build.targets.wheel.force-include]
+"skills" = "bridge_for_agents/skills"
+
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "skills", "examples", "scripts", "tests", "*.md", "LICENSE"]
+
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
