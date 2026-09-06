@@ -140,3 +140,29 @@ def test_on_update_has_exactly_one_acceptance_path():
     assert src.count("_resolve(") == 1
     assert src.count("_drop(") == 2          # the two rejection paths
     assert "elif" not in src
+
+
+# --- Telegram narrating our own actions back at us -----------------------
+@pytest.mark.parametrize("service", [
+    {"forum_topic_created": {"name": "myrepo · a1b2c3d4"}},
+    {"forum_topic_closed": {}},
+    {"general_forum_topic_hidden": {}},
+    {"new_chat_members": [{"id": 1}]},
+    {"pinned_message": {"message_id": 3}},
+])
+async def test_service_messages_are_not_recorded_as_unsolicited(chan, service):
+    """Found on a real run: creating a topic logged a rejection 170ms later.
+
+    A service message is Telegram describing something we did. Filing it as
+    "someone tried to initiate" buries the real signal under one entry per
+    topic opened.
+    """
+    await chan._on_update({"message": {"message_id": 7, "chat": {"id": CHAT}, **service}})
+    assert chan.store.snapshot()["totals"]["rejected"] == 0
+
+
+async def test_a_real_message_with_no_text_is_still_recorded(chan):
+    """A photo with no caption is a person; a service message is not."""
+    await chan._on_update({"message": {"message_id": 7, "chat": {"id": CHAT},
+                                       "photo": [{"file_id": "x"}]}})
+    assert chan.store.snapshot()["totals"]["rejected"] == 1

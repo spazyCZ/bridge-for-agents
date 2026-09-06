@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BRIDGE_NOTIFY_RATE` (20/min); `BRIDGE_NOTIFY=0` refuses them. The JSON-RPC
   is hand-written — the MCP SDK brings ~25 transitive dependencies for a
   one-tool stdio server.
+- Telegram service messages — a created or closed forum topic, a title change
+  — are no longer recorded as unsolicited inbound. Found on a real run: opening
+  a topic filed a rejection 170 ms later, so the log that exists to say
+  "someone tried to initiate something" gained one false entry per topic.
 - `skills/notify-user/`: a Claude Code skill covering how to write a
   notification for a lock screen, and what must never go in one.
 - Diagnostic logging (`logs.py`), distinct from the audit log and with the

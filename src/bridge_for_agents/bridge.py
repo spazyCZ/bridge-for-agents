@@ -393,6 +393,22 @@ class TelegramChannel(Channel):
             label = answer[1][:200]
         await self._finalize(message_id, f"✔ {html.escape(label)}")
 
+    # Telegram narrates our own actions back to us as service messages — a
+    # created topic, a changed title. They carry no text and nobody sent them,
+    # so recording them as "someone tried to initiate" would bury the real
+    # signal under one entry per topic we open.
+    SERVICE_KEYS = frozenset({
+        "new_chat_members", "left_chat_member", "new_chat_title", "new_chat_photo",
+        "delete_chat_photo", "pinned_message", "message_auto_delete_timer_changed",
+        "group_chat_created", "supergroup_chat_created", "channel_chat_created",
+        "migrate_to_chat_id", "migrate_from_chat_id",
+    })
+
+    @classmethod
+    def _is_service(cls, m: dict) -> bool:
+        return any(k.startswith("forum_topic_") or k.startswith("general_forum_topic_")
+                   or k in cls.SERVICE_KEYS for k in m)
+
     async def _drop(self, u: dict) -> None:
         """Nothing was open for this. Record it — it is a signal, not noise.
 
@@ -410,6 +426,9 @@ class TelegramChannel(Channel):
         else:
             m = u.get("message") or {}
             if m.get("chat", {}).get("id") != self.chat_id:
+                return
+            if self._is_service(m):
+                log.debug("ignoring telegram service message")
                 return
             kind, text = "message", (m.get("text") or "")
         log.warning("dropped unsolicited %s: %r", kind, text[:120])
