@@ -95,7 +95,7 @@
           {
             "type": "http",
             "url": "https://bridge.lan:8765/hook",
-            "timeout": 10,
+            "timeout": 3,
             "headers": {
               "Authorization": "Bearer ${BRIDGE_TOKEN}"
             },

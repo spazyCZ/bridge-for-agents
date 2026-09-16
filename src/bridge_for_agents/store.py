@@ -36,6 +36,12 @@ answer_source: ContextVar[str | None] = ContextVar("answer_source", default=None
 _TAG = re.compile(r"<[^>]+>")
 
 
+def _nested(a: str, b: str) -> bool:
+    """Is one path inside the other? Compares whole segments, so /repo and
+    /repo-other are unrelated."""
+    return a.startswith(b + os.sep) or b.startswith(a + os.sep)
+
+
 def plain(markup: str) -> str:
     """Telegram HTML back to something readable in a browser table."""
     import html as _html
@@ -188,8 +194,7 @@ class Store:
         )
         s.events.append(e)
         self.feed.append(e)
-        if name == "SessionEnd":
-            s.ended = True
+        s.ended = name == "SessionEnd"   # a resumed session is live again
         return e
 
     def complete(self, e: Event, outcome: str) -> None:
@@ -228,11 +233,21 @@ class Store:
         if not cwd:
             return None
         want = os.path.normpath(cwd)
-        live = [s for s in self.sessions.values()
-                if not s.ended and s.cwd and os.path.normpath(s.cwd) == want]
-        if not live:
-            return None
-        return max(live, key=lambda s: s.last_seen).session_id
+        live = [s for s in self.sessions.values() if not s.ended and s.cwd]
+
+        def newest(candidates: list[Session]) -> str | None:
+            return max(candidates, key=lambda s: s.last_seen).session_id if candidates else None
+
+        # Exact first, so a session started in this very directory wins.
+        if hit := newest([s for s in live if os.path.normpath(s.cwd) == want]):
+            return hit
+
+        # Then one directory inside the other. A hook reports the working
+        # directory at the time it fired, while an MCP server reports
+        # CLAUDE_PROJECT_DIR, which stays at the root where the session began —
+        # so running Claude Code from a subdirectory makes the two differ, and
+        # requiring equality would send the notification to General.
+        return newest([s for s in live if _nested(os.path.normpath(s.cwd), want)])
 
     # -- views -------------------------------------------------------------
     def snapshot(self, session_id: str | None = None) -> dict[str, Any]:

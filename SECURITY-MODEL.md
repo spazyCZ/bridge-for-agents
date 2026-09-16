@@ -219,6 +219,7 @@ Beyond that:
 |---|---|
 | Binds `127.0.0.1` unless you change it | `BRIDGE_BIND` |
 | Refuses to start on a weak listener: non-loopback with no token, non-loopback with no TLS, or a token under 32 characters | `preflight()` |
+| Your submitted prompts are kept in memory for the admin feed, truncated and redacted, and never sent to the chat. They are freer text than a command, so treat the admin page accordingly | `describe()`, `store.py` |
 | Recognisable credentials removed from tool inputs before they leave the host, with a count shown in the message; redaction runs **before** the 600-character truncation so a key cannot survive by straddling the cut | `redact.py`, `summarize_counted()` |
 | Every request, decision, rejected update and auth failure appended to a `0600` log with `fsync`, keeping the **full** tool input and how the answer arrived; optionally HMAC-chained so an edited line is detectable | `audit.py` |
 | Bearer token compared with `hmac.compare_digest` | `authorized()` |

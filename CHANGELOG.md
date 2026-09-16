@@ -111,6 +111,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A resumed session stayed marked as ended, so `claude --resume` re-registered
+  it but notification routing still skipped it and fell back to General — the
+  exact failure the registration hook exists to prevent. `ended` now reflects
+  the latest event rather than latching.
+- Notification attribution tolerates a working directory inside the session's.
+  A hook reports the directory it fired in, while an MCP server reports
+  `CLAUDE_PROJECT_DIR`, which stays at the root where the session began, so
+  running Claude Code from a subdirectory made the two disagree and sent the
+  notification to General. Exact matches still win, and sibling directories
+  like `/repo` and `/repo-other` are still unrelated.
+- `INSTALL.md` carries its own hook snippet and had not gained
+  `UserPromptSubmit`; anyone following it rather than `examples/` got a bridge
+  that never learned the session. The bug report template's event list was
+  missing it too.
 - A notification sent before a session's first hook still had nothing to
   attribute it to. A `UserPromptSubmit` hook now registers the session, which
   happens before Claude processes anything, so the bridge always knows the
@@ -144,6 +158,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the OOM killer remain uncatchable.
 
 ### Changed
+
+- `UserPromptSubmit`'s hook timeout is 3 seconds rather than 10. The handler
+  does no I/O, so the timeout only covers reaching the bridge — and it blocks
+  every prompt, so an unreachable host should fail fast instead of stalling.
 
 - Documentation corrected: returning `{}` means *no decision*, which is a
   terminal prompt in an interactive session but a **denial** in one that cannot

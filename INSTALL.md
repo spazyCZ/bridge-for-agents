@@ -73,6 +73,10 @@ Merge this into `~/.claude/settings.json`, or a project's
 ```json
 {
   "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "http", "url": "http://127.0.0.1:8765/hook",
+                     "timeout": 3 } ] }
+    ],
     "PermissionRequest": [
       { "hooks": [ { "type": "http", "url": "http://127.0.0.1:8765/hook",
                      "timeout": 600,
@@ -92,6 +96,10 @@ Merge this into `~/.claude/settings.json`, or a project's
 ```
 
 The full file is in [`examples/hooks.settings.json`](examples/hooks.settings.json).
+
+`UserPromptSubmit` is what tells the bridge which session is running where.
+Without it, notifications from `notify_user` cannot be attributed to a
+session and land in the group's General topic instead of the session's own.
 Run `/hooks` in Claude Code to confirm they loaded.
 
 The hook `timeout` must stay **above** `BRIDGE_TIMEOUT` (540 s by default), so

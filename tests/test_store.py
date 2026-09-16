@@ -142,3 +142,42 @@ def test_no_directory_matches_nothing():
     st = Store()
     st.record(ev(session="aaa", cwd="/repo"))
     assert st.session_for_cwd("") is None
+
+
+def test_a_resumed_session_is_live_again():
+    """`claude --resume` re-registers the same id. If `ended` stuck, the
+    notification routing this whole mechanism exists for would break again."""
+    st = Store()
+    st.record(ev(session="s1", cwd="/repo", name="UserPromptSubmit"))
+    st.record(ev(session="s1", cwd="/repo", name="SessionEnd"))
+    assert st.session_for_cwd("/repo") is None
+
+    st.record(ev(session="s1", cwd="/repo", name="UserPromptSubmit"))
+    assert st.session_for_cwd("/repo") == "s1"
+    assert st.snapshot()["totals"]["active"] == 1
+
+
+def test_a_directory_inside_the_session_matches():
+    """A hook reports the cwd when it fired; an MCP server reports
+    CLAUDE_PROJECT_DIR, which stays at the root. Running from a subdirectory
+    makes them differ."""
+    st = Store()
+    st.record(ev(session="s1", cwd="/repo/backend"))
+    assert st.session_for_cwd("/repo") == "s1"
+    st2 = Store()
+    st2.record(ev(session="s2", cwd="/repo"))
+    assert st2.session_for_cwd("/repo/backend/api") == "s2"
+
+
+def test_an_exact_match_beats_a_containing_one():
+    st = Store()
+    st.record(ev(session="parent", cwd="/repo"))
+    st.record(ev(session="child", cwd="/repo/backend"))
+    assert st.session_for_cwd("/repo/backend") == "child"
+
+
+def test_a_sibling_directory_is_not_treated_as_nested():
+    """/repo and /repo-other share a prefix but not a path."""
+    st = Store()
+    st.record(ev(session="s1", cwd="/repo"))
+    assert st.session_for_cwd("/repo-other") is None

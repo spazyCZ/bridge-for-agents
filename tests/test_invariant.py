@@ -166,3 +166,72 @@ async def test_a_real_message_with_no_text_is_still_recorded(chan):
     await chan._on_update({"message": {"message_id": 7, "chat": {"id": CHAT},
                                        "photo": [{"file_id": "x"}]}})
     assert chan.store.snapshot()["totals"]["rejected"] == 1
+
+
+# --- the hook that blocks the model must not call Telegram ---------------
+async def test_user_prompt_submit_reaches_no_telegram_call(bridge, monkeypatch):
+    """Pinned at the endpoint, not the handler.
+
+    The handler alone can be correct while `hook_endpoint` still routes this
+    event through `thread_for` — a createForumTopic round trip on a hook that
+    blocks every prompt and times out in seconds. Deleting the branch used to
+    leave every test passing.
+    """
+    from aiohttp.test_utils import make_mocked_request
+
+    monkeypatch.setattr(bridge, "STORE", Store())
+    calls: list[str] = []
+
+    class Chan:
+        async def thread_for(self, ev):
+            calls.append("thread_for")
+            return 7
+
+        async def send(self, *a, **k):
+            calls.append("send")
+
+        async def ask(self, *a, **k):
+            calls.append("ask")
+
+    body = {"hook_event_name": "UserPromptSubmit", "session_id": "s1",
+            "cwd": "/repo", "prompt": "run the tests"}
+    req = make_mocked_request("POST", "/hook", payload=body)
+    req.app["chan"] = Chan()
+
+    async def json_body():
+        return body
+    req.json = json_body
+
+    resp = await bridge.hook_endpoint(req)
+    assert resp.status == 200
+    assert calls == [], f"UserPromptSubmit reached Telegram: {calls}"
+    # and it still registered the session, which is the point of the event
+    assert bridge.STORE.session_for_cwd("/repo") == "s1"
+
+
+async def test_other_events_do_still_resolve_a_thread(bridge, monkeypatch):
+    """The guard above must not be satisfied by breaking everything else."""
+    from aiohttp.test_utils import make_mocked_request
+
+    monkeypatch.setattr(bridge, "STORE", Store())
+    calls: list[str] = []
+
+    class Chan:
+        async def thread_for(self, ev):
+            calls.append("thread_for")
+            return 7
+
+        async def send(self, *a, **k):
+            calls.append("send")
+
+    body = {"hook_event_name": "Stop", "session_id": "s1", "cwd": "/repo",
+            "last_assistant_message": "done"}
+    req = make_mocked_request("POST", "/hook", payload=body)
+    req.app["chan"] = Chan()
+
+    async def json_body():
+        return body
+    req.json = json_body
+
+    await bridge.hook_endpoint(req)
+    assert "thread_for" in calls
