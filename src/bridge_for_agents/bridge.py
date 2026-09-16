@@ -727,13 +727,25 @@ async def notify_endpoint(request: web.Request) -> web.Response:
         return web.json_response({"error": f"rate limit: {NOTIFY_RATE}/min"}, status=429)
 
     text, hidden = REDACTOR.scrub(raw[:3000])
-    ev = {"session_id": body.get("session_id") or "", "cwd": body.get("cwd") or ""}
+    cwd = body.get("cwd") or ""
+    sid = body.get("session_id") or ""
+    if not sid:
+        # Claude Code does not tell an MCP server which session it serves, so
+        # notify_user cannot send one. Infer it from the working directory,
+        # which the server does know — otherwise every notification lands in
+        # General rather than beside the prompts from the same session.
+        sid = STORE.session_for_cwd(cwd) or ""
+        if sid:
+            log.debug("notification attributed to session %s by cwd %s", sid[:8], cwd)
+    ev = {"session_id": sid, "cwd": cwd}
     chan: Channel = request.app["chan"]
-    thread = await chan.thread_for(ev) if ev["session_id"] else None
+    thread = await chan.thread_for(ev) if sid else None
+    if thread is None and SCOPE != "flat":
+        log.info("notification going to the general thread: no live session for cwd %r", cwd)
     title = {"warn": "⚠️", "error": "🔴"}.get(str(body.get("level", "info")), "🔔")
     await chan.send(f"{title} {session_tag(ev)}{esc(text)}{redact.note(hidden)}", thread=thread)
 
-    AUDIT.write("notification", session_id=ev["session_id"], cwd=ev["cwd"],
+    AUDIT.write("notification", session_id=sid, cwd=cwd,
                 level=body.get("level", "info"), message=raw, redacted=hidden)
     log.info("notification sent (%d chars, %d redacted)", len(text), hidden)
     return web.json_response({"ok": True, "redacted": hidden})

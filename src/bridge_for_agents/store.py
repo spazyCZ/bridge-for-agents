@@ -10,6 +10,7 @@ All state is touched from the daemon's single event loop, so no locking.
 """
 from __future__ import annotations
 
+import os
 import re
 import time
 from collections import OrderedDict, deque
@@ -213,6 +214,25 @@ class Store:
     # -- unsolicited inbound -----------------------------------------------
     def reject(self, kind: str, text: str) -> None:
         self.rejected.append(Rejected(ts=time.time(), kind=kind, text=text[:300]))
+
+    def session_for_cwd(self, cwd: str) -> str | None:
+        """The session most likely to have sent a notification from `cwd`.
+
+        MCP servers are not told which session they belong to — Claude Code
+        does not expose the session id to them — but they do know their working
+        directory, and the hooks have already told us which sessions are live
+        and where. The most recently active unfinished session in that
+        directory is right nearly always, and being one topic out beats
+        everything landing in General.
+        """
+        if not cwd:
+            return None
+        want = os.path.normpath(cwd)
+        live = [s for s in self.sessions.values()
+                if not s.ended and s.cwd and os.path.normpath(s.cwd) == want]
+        if not live:
+            return None
+        return max(live, key=lambda s: s.last_seen).session_id
 
     # -- views -------------------------------------------------------------
     def snapshot(self, session_id: str | None = None) -> dict[str, Any]:

@@ -93,3 +93,52 @@ def test_close_prompt_clears_it():
     st.close_prompt("r1")
     assert st.snapshot()["waiting"] == []
     st.close_prompt("r1")  # idempotent
+
+
+# --- attributing a notification to a session -----------------------------
+def test_a_notification_is_attributed_to_the_live_session_in_that_directory():
+    """MCP servers are not told their session id, only their directory."""
+    st = Store()
+    st.record(ev(session="aaa", cwd="/repo"))
+    assert st.session_for_cwd("/repo") == "aaa"
+
+
+def test_the_most_recent_session_wins_when_two_share_a_directory():
+    st = Store()
+    st.record(ev(session="older", cwd="/repo"))
+    st.record(ev(session="newer", cwd="/repo"))
+    assert st.session_for_cwd("/repo") == "newer"
+
+
+def test_an_ended_session_is_not_chosen():
+    st = Store()
+    st.record(ev(session="done", cwd="/repo"))
+    st.record(ev(session="done", cwd="/repo", name="SessionEnd"))
+    assert st.session_for_cwd("/repo") is None
+
+
+def test_an_ended_session_does_not_hide_a_live_one():
+    st = Store()
+    st.record(ev(session="live", cwd="/repo"))
+    st.record(ev(session="done", cwd="/repo"))
+    st.record(ev(session="done", cwd="/repo", name="SessionEnd"))
+    assert st.session_for_cwd("/repo") == "live"
+
+
+def test_a_different_directory_does_not_match():
+    st = Store()
+    st.record(ev(session="aaa", cwd="/repo"))
+    assert st.session_for_cwd("/elsewhere") is None
+
+
+def test_trailing_slashes_and_dot_segments_still_match():
+    st = Store()
+    st.record(ev(session="aaa", cwd="/repo"))
+    assert st.session_for_cwd("/repo/") == "aaa"
+    assert st.session_for_cwd("/repo/sub/..") == "aaa"
+
+
+def test_no_directory_matches_nothing():
+    st = Store()
+    st.record(ev(session="aaa", cwd="/repo"))
+    assert st.session_for_cwd("") is None

@@ -104,8 +104,15 @@ def call_tool(name: str, args: dict) -> dict:
     status, body = _post("/notify", {
         "message": message,
         "level": args.get("level", "info"),
-        "session_id": os.environ.get("CLAUDE_SESSION_ID", ""),
-        "cwd": os.getcwd(),
+        # Claude Code does not expose the session id to MCP servers — there is
+        # no such environment variable — so this is almost always empty and the
+        # bridge infers the session from the directory instead. Kept as an
+        # override for other clients and for testing.
+        "session_id": os.environ.get("BRIDGE_SESSION_ID")
+                      or os.environ.get("CLAUDE_SESSION_ID", ""),
+        # CLAUDE_PROJECT_DIR is what Claude Code does set, and it matches the
+        # `cwd` the hooks report; getcwd can differ.
+        "cwd": os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd(),
     })
     if status == 200:
         hidden = body.get("redacted") or 0
