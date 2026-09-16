@@ -38,6 +38,24 @@ events → the Claude-Code-to-bridge side. That split saves most of the work.
   outside and mean different things — `terminal` is a deliberate "answer at the
   keyboard", `timeout` is nobody saw it. Only the audit log distinguishes them.
 
+## Notifications in General, but prompts in their own topics
+
+Two different faults, and the split tells you which. Prompts getting topics
+while only notifications do not means topic creation works and the notification
+could not be attributed to a session.
+
+MCP servers are never told their session id — Claude Code exposes no such
+variable — so the bridge infers it from the working directory, matched against
+the live sessions the hooks reported. General means nothing matched:
+
+```
+notification going to the general thread: no live session for cwd '/repo'
+```
+
+Usual causes: the session had not sent a hook yet, the MCP server's directory
+differs from the `cwd` the hooks report, or the sender was a script rather than
+Claude Code. `BRIDGE_SESSION_ID` overrides the inference.
+
 ## Everything lands in General, no topics
 
 The bot is in the group but is not an admin with **Manage Topics**:

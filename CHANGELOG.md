@@ -111,6 +111,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every notification landed in General instead of its session's topic.**
+  `notify_user` read `CLAUDE_SESSION_ID`, which Claude Code does not set — it
+  exposes no session id to MCP servers at all — so the session was always
+  empty, `thread_for` was never called, and the code had been dead since it was
+  written. It failed silently because General is a working destination. The
+  bridge now infers the session from the working directory, matched against the
+  live sessions the hooks have already reported, and says so at INFO when it
+  cannot. The MCP server sends `CLAUDE_PROJECT_DIR`, which Claude Code does
+  set and which matches the `cwd` hooks report, rather than `getcwd()`;
+  `BRIDGE_SESSION_ID` overrides the inference.
+
 - **A comment on a question was corrupting the answer.** `answers` maps a
   question to the *selected option label*; the comment feature appended the
   remark to it, so `2 - but check the migration first` sent

@@ -533,6 +533,29 @@ Claude Code and the bridge.
 - **The prompt already expired.** Tapping an old button answers "This request
   already expired"; the decision went back to the terminal at `BRIDGE_TIMEOUT`.
 
+### Notifications land in General, but prompts get their own topic
+
+A different cause from the one below, and the logs tell them apart: prompts in
+topics but notifications in General means topic creation is fine and the
+notification could not be attributed to a session.
+
+Claude Code does not tell an MCP server which session it belongs to — there is
+no session-id environment variable, and no other mechanism either — so
+`notify_user` sends none. The bridge infers it from the working directory,
+matched against the live sessions the hooks have already reported, which works
+once a session in that directory has sent any hook.
+
+It falls back to General when there is genuinely nothing to match: a
+notification sent before that session's first hook event, one sent from a
+different directory than the hooks report, or one sent by a script rather than
+by Claude Code. The bridge says which:
+
+```
+notification going to the general thread: no live session for cwd '/repo'
+```
+
+`BRIDGE_SESSION_ID` in the MCP server's environment overrides the inference.
+
 ### Everything lands in General instead of its own topic
 
 The bot is in the group but is not an admin with **Manage Topics**, so
