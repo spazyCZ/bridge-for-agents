@@ -88,6 +88,23 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://bridge.lan:8765/hook",
+            "timeout": 10,
+            "headers": {
+              "Authorization": "Bearer ${BRIDGE_TOKEN}"
+            },
+            "allowedEnvVars": [
+              "BRIDGE_TOKEN"
+            ]
+          }
+        ]
+      }
     ]
   }
 }

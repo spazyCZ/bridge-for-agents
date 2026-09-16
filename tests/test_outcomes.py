@@ -109,3 +109,34 @@ async def test_free_text_that_names_no_option_is_still_the_answer(bridge, monkey
     """Not a label, but it is what the user said, and there is nothing better."""
     spec = (await _answer(bridge, monkeypatch, "neither, use DuckDB"))["hookSpecificOutput"]
     assert spec["updatedInput"]["answers"] == {"Which database?": "neither, use DuckDB"}
+
+
+# --- session registration -------------------------------------------------
+async def test_user_prompt_submit_sends_nothing_and_returns_at_once(bridge):
+    """It blocks the model and times out in 30s by default, so it must not
+    touch Telegram — not even a topic lookup, which is an API round trip."""
+    touched = []
+
+    class Chan:
+        async def send(self, *a, **k): touched.append("send")
+        async def ask(self, *a, **k): touched.append("ask")
+        async def thread_for(self, ev): touched.append("thread_for")
+
+    out = await bridge.on_user_prompt_submit(Chan(), {"session_id": "s", "prompt": "hi"}, None)
+    assert out == {}
+    assert touched == [], f"reached Telegram: {touched}"
+
+
+def test_a_submitted_prompt_is_summarised_for_the_admin_feed(bridge):
+    assert bridge.describe({"hook_event_name": "UserPromptSubmit",
+                            "prompt": "  fix the auth tests  "}) == "fix the auth tests"
+
+
+def test_a_secret_in_a_prompt_is_redacted_before_it_is_stored(bridge):
+    out = bridge.describe({"hook_event_name": "UserPromptSubmit",
+                           "prompt": "deploy with token ghp_" + "a" * 36})
+    assert "ghp_" not in out
+
+
+def test_registration_is_its_own_outcome(bridge):
+    assert bridge.outcome_of("UserPromptSubmit", {}, None) == "registered"

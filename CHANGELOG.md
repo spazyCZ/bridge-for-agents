@@ -111,6 +111,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A notification sent before a session's first hook still had nothing to
+  attribute it to. A `UserPromptSubmit` hook now registers the session, which
+  happens before Claude processes anything, so the bridge always knows the
+  session before the agent can notify. It records and returns without touching
+  Telegram — that hook blocks the model and times out in 30 seconds by default,
+  so it must not make an API call, not even a topic lookup. Topics stay lazy.
 - **Every notification landed in General instead of its session's topic.**
   `notify_user` read `CLAUDE_SESSION_ID`, which Claude Code does not set — it
   exposes no session id to MCP servers at all — so the session was always

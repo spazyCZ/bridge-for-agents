@@ -507,6 +507,8 @@ def describe(ev: dict) -> str:
         return REDACTOR.scrub(ev.get("message", ""))[0]
     if name == "SessionEnd":
         return ev.get("reason", "")
+    if name == "UserPromptSubmit":
+        return REDACTOR.scrub((ev.get("prompt") or "").strip())[0][:300]
     inp = ev.get("tool_input", {}) or {}
     if ev.get("tool_name") == "AskUserQuestion":
         return " · ".join(q.get("question", "") for q in inp.get("questions", []))[:300]
@@ -525,6 +527,8 @@ def outcome_of(name: str | None, out: dict, hint: str | None = None) -> str:
     if name == "PreToolUse":
         answers = (spec.get("updatedInput") or {}).get("answers")
         return f"answered ({len(answers)})" if answers else (hint or "terminal")
+    if name == "UserPromptSubmit":
+        return "registered"
     if name in ("Stop", "Notification", "SessionEnd"):
         return "sent"
     return "passthrough"
@@ -623,6 +627,20 @@ async def on_notification(chan: Channel, ev: dict, thread: Any) -> dict:
     return {}
 
 
+async def on_user_prompt_submit(chan: Channel, ev: dict, thread: Any) -> dict:
+    """Register the session. Nothing is sent, and nothing is awaited.
+
+    This hook blocks the model until it returns and times out in 30 seconds by
+    default, so it must not touch Telegram — no message, and not even a topic
+    lookup, which is an API round trip. Recording has already happened in the
+    endpoint, which is the whole point: it teaches the bridge that this session
+    is live in this directory *before* the agent can call notify_user, so a
+    notification can be attributed to it. Claude Code tells MCP servers nothing
+    about the session, so this is how the bridge learns.
+    """
+    return {}
+
+
 async def on_session_end(chan: Channel, ev: dict, thread: Any) -> dict:
     asyncio.create_task(chan.close_thread(ev))
     return {}
@@ -659,6 +677,10 @@ async def hook_endpoint(request: web.Request) -> web.Response:
     try:
         if name == "SessionEnd":
             out = await on_session_end(chan, ev, None)
+        elif name == "UserPromptSubmit":
+            # Deliberately before thread_for: this hook blocks the model, and a
+            # topic lookup is a Telegram round trip. Topics stay lazy.
+            out = await on_user_prompt_submit(chan, ev, None)
         else:
             thread = await chan.thread_for(ev)
             STORE.session(ev).topic_id = thread
