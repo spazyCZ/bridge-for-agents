@@ -4,6 +4,7 @@ Typical use is a long-running loop reporting progress to your phone without
 you watching the terminal.
 
     claude mcp add bridge-notify -- bridge-for-agents-mcp
+    codex mcp add bridge-notify -- bridge-for-agents-mcp
 
 The JSON-RPC is written out by hand rather than pulled from the MCP SDK. The
 SDK brings roughly twenty-five transitive dependencies — pydantic, starlette,
@@ -46,7 +47,8 @@ TOOLS = [
             "attention while they are away from the terminal.\n\n"
             "It is one-way: the user cannot reply to it, and nothing is returned "
             "except confirmation that it was sent. To ask a question, use "
-            "AskUserQuestion, which the bridge also routes to the phone.\n\n"
+            "your client's question tool. Claude Code's AskUserQuestion is "
+            "also routed to the phone; Codex questions stay in its UI.\n\n"
             "Keep it to a line or two. Never include credentials, tokens, keys, "
             "file contents, or personal data — this leaves the machine and is "
             "stored by a third-party chat service."
@@ -104,14 +106,13 @@ def call_tool(name: str, args: dict) -> dict:
     status, body = _post("/notify", {
         "message": message,
         "level": args.get("level", "info"),
-        # Claude Code does not expose the session id to MCP servers — there is
-        # no such environment variable — so this is almost always empty and the
-        # bridge infers the session from the directory instead. Kept as an
-        # override for other clients and for testing.
+        # Agent clients do not reliably expose the session id to MCP servers,
+        # so this is usually empty and the bridge infers the session from the
+        # directory instead. Kept as an override for clients and testing.
         "session_id": os.environ.get("BRIDGE_SESSION_ID")
                       or os.environ.get("CLAUDE_SESSION_ID", ""),
-        # CLAUDE_PROJECT_DIR is what Claude Code does set, and it matches the
-        # `cwd` the hooks report; getcwd can differ.
+        # Claude Code supplies CLAUDE_PROJECT_DIR. Codex starts local MCP
+        # servers in the session directory, so getcwd is its useful fallback.
         "cwd": os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd(),
     })
     if status == 200:

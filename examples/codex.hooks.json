@@ -1,0 +1,50 @@
+{
+  "description": "Route Codex permission prompts and lifecycle events through bridge-for-agents.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bridge-for-agents-hook",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bridge-for-agents-hook",
+            "timeout": 600,
+            "statusMessage": "Waiting for Telegram approval…"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bridge-for-agents-hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bridge-for-agents-hook",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

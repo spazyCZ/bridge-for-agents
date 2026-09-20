@@ -78,3 +78,21 @@ it as not-for-me.
 Merge `examples/hooks.settings.json` into `~/.claude/settings.json`, or a
 project's `.claude/settings.json`. `/hooks` confirms they loaded. The hook
 `timeout` must exceed `BRIDGE_TIMEOUT` so the bridge always answers first.
+
+## Hooking up Codex
+
+Install the packaged command-hook configuration:
+
+```bash
+bridge-for-agents install-codex-hooks
+```
+
+If `~/.codex/hooks.json` already exists, the command refuses to overwrite it;
+merge `examples/codex.hooks.json` manually. Run `/hooks` in Codex, review the
+definition, and trust it. `bridge-for-agents-hook` reads `BRIDGE_URL`,
+`BRIDGE_TOKEN`, and `BRIDGE_HOOK_TIMEOUT` from the environment inherited by
+Codex.
+
+Codex hooks support phone approval, completion messages, registration for
+notification routing, and topic cleanup. Codex's current question tool cannot
+receive its answer from a hook, so user questions remain in Codex.

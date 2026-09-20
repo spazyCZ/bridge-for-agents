@@ -61,3 +61,26 @@ async def test_prompt_is_visible_while_outstanding_then_cleared_on_answer(chan):
 async def test_prompt_is_cleared_on_timeout(chan):
     assert await chan.ask("🔐 <b>Write</b>\n/etc/passwd", OPTIONS, 0) is None
     assert chan.store.snapshot()["totals"]["waiting"] == 0
+
+
+async def test_session_topic_cleanup_contains_transport_failures(bridge, chan, monkeypatch):
+    """SessionEnd cleanup runs in a background task and must handle failures."""
+    monkeypatch.setattr(bridge, "SCOPE", "session")
+    event = {"session_id": "codex-live", "cwd": "/repo"}
+    key, _ = chan._key(event)
+    chan.is_forum = True
+    chan.topics[key] = 74
+    monkeypatch.setattr(chan, "_save_topics", lambda: None)
+
+    async def failed_send(*args, **kwargs):
+        raise TimeoutError("Telegram did not answer")
+
+    async def failed_call(*args, **kwargs):
+        raise TimeoutError("Telegram did not answer")
+
+    monkeypatch.setattr(chan, "send", failed_send)
+    monkeypatch.setattr(chan, "call", failed_call)
+
+    await chan.close_thread(event)
+
+    assert key not in chan.topics

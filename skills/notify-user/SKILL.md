@@ -9,8 +9,9 @@ description: Send the user a push notification on their phone via bridge-for-age
 that is the whole reason to use it.
 
 **It is one-way.** They cannot reply to it, and you get back nothing but
-confirmation it was sent. If you need an answer, use `AskUserQuestion`; the
-bridge routes that to the same phone with buttons.
+confirmation it was sent. If you need an answer, use the client's normal
+question tool. The bridge routes Claude Code's `AskUserQuestion` to the same
+phone with buttons; Codex questions currently stay in the Codex UI.
 
 ## Never send
 

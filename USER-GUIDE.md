@@ -62,7 +62,7 @@ Scope is chosen with `BRIDGE_SCOPE`:
 
 | Value | One topic per | Topic name | Good for |
 |---|---|---|---|
-| `session` (default) | Claude Code session | `myrepo · a1b2c3d4` | many parallel sessions, clean separation |
+| `session` (default) | agent session | `myrepo · a1b2c3d4` | many parallel sessions, clean separation |
 | `project` | working directory | `myrepo` | few long-lived repos, less topic churn |
 | `flat` | – | – | one chat, sessions tagged inline |
 
@@ -87,7 +87,7 @@ One bridge serves any number of parallel sessions — see
 | Event | Message | Buttons |
 |---|---|---|
 | Permission prompt (any tool) | tool + command/file | Allow / Deny / Answer in terminal |
-| `AskUserQuestion` | header, question, numbered options | one per option + terminal |
+| Claude Code `AskUserQuestion` | header, question, numbered options | one per option + terminal |
 | Idle prompt (60 s waiting) | "waiting for input" | – |
 | Turn finished | last assistant message | – |
 | Session ended | closes the topic | – |
@@ -114,15 +114,14 @@ Reply to the bot's message. What you type is parsed, not passed through blindly:
 | `neither, use DuckDB` | that text as the answer |
 
 **Affirmatives must be bare.** `yes` allows; `yes but only the first one`
-denies, carrying the caveat to Claude as the reason. The asymmetry is
+denies, carrying the caveat to the agent as the reason. The asymmetry is
 deliberate — reading a hedge as approval runs the command, while reading it as
 a denial only sends the prompt back to your terminal. One of those is
 recoverable.
 - **Fallback**: no answer within `BRIDGE_TIMEOUT` (540 s) or "Answer in terminal"
-  → bridge returns `{}`, meaning *no decision* → Claude Code prompts in the
-  terminal, or denies the call in a session that cannot prompt (a background
-  subagent, or headless). Neither approves.
-  Hook timeout in settings is 600 s so the bridge always answers first.
+  → bridge returns `{}`, meaning *no decision* → the client uses its local
+  approval flow, or denies the call in a session that cannot prompt. Neither
+  approves. The hook timeout is 600 s so the bridge always answers first.
 - **Multiple sessions**: each gets its own topic — see below.
 
 ## Deployment
@@ -141,7 +140,7 @@ give you.
 
 ```mermaid
 flowchart TD
-    S{"How many machines<br/>run Claude Code?"}
+    S{"How many machines<br/>run agent clients?"}
 
     S -->|"one"| ONE["1 bot, 1 group<br/>bridge on 127.0.0.1"]
     ONE --> ONEOK["No token, no TLS, no certificates<br/>Nothing is exposed"]
@@ -249,6 +248,7 @@ are not tied to the terminal waiting for it.
 
 ```bash
 claude mcp add bridge-notify -- bridge-for-agents-mcp
+codex mcp add bridge-notify -- bridge-for-agents-mcp
 ```
 
 The server reads `BRIDGE_URL` (default `http://127.0.0.1:8765`) and
@@ -264,9 +264,9 @@ stay quiet otherwise.
 **It is send-only, and that is deliberate.** It posts to `/notify`, which sends
 and returns — nothing is awaited and no chat content comes back. There is no
 tool that reads a reply, and there will not be: that would turn a one-way
-approval channel into a bidirectional one. To ask a question, use
-`AskUserQuestion`, which the bridge already routes to the same phone with
-buttons.
+approval channel into a bidirectional one. Claude Code's `AskUserQuestion` is
+routed to the same phone with buttons. Codex's current hook contract cannot
+return a question answer, so Codex questions remain in its UI.
 
 Notifications are [redacted](#logs) like any other outgoing message, recorded
 in the [audit log](#audit-log) with the message in full, and capped at
@@ -275,12 +275,13 @@ in the [audit log](#audit-log) with the message in full, and capped at
 
 #### The skill
 
-`skills/notify-user/` is a Claude Code skill telling the agent what belongs in
+`skills/notify-user/` is an agent skill explaining what belongs in
 a notification and, more importantly, what must never go in one — credentials,
 file contents, stack traces, customer data. Install it with:
 
 ```bash
 bridge-for-agents install-skills
+bridge-for-agents install-skills --client codex
 ```
 
 Redaction is a backstop, not a licence. It knows common key shapes; it does not
@@ -290,7 +291,7 @@ so the agent gets it right before the redactor has to.
 ## The admin page
 
 A read-only dashboard at `/admin` on the same listener as the hook endpoint:
-what Claude Code is waiting for **right now**, and what it has asked for
+what an agent is waiting for **right now**, and what it has asked for
 recently.
 
 ```bash
@@ -434,20 +435,21 @@ It prints ready-to-paste exports and writes `pki/`:
 | File | Goes to | Mode |
 |---|---|---|
 | `server.crt`, `server.key` | bridge host | key `0600` |
-| `ca.crt` | every Claude Code host | `0644` |
+| `ca.crt` | every agent host | `0644` |
 | `ca.key` | keep offline, only needed to issue more certs | `0600` |
 
 **1. Shared key.** `BRIDGE_TOKEN` is a 32-byte random hex string, checked with
-`hmac.compare_digest` on every request. Claude Code sends it as
-`Authorization: Bearer ${BRIDGE_TOKEN}`, interpolated from the environment
-because `allowedEnvVars` lists it — so the secret never enters `settings.json`
-and never reaches git. Keep it in your shell profile, a `systemd`
+`hmac.compare_digest` on every request. Claude Code sends it as an
+`Authorization` header; the Codex relay reads the same `BRIDGE_TOKEN` from its
+environment. The secret never needs to enter a hook file or git. Keep it in
+your shell profile, a `systemd`
 `EnvironmentFile` with mode `0600`, or your usual secret store.
 
 **2. TLS.** With `BRIDGE_TLS_CERT` / `BRIDGE_TLS_KEY` set, the listener speaks
 HTTPS (TLS 1.2 minimum) and the hook URL becomes `https://`. Without it the
 bearer token crosses the LAN in cleartext, which defeats the point of having one.
-Each Claude Code host trusts the CA via `NODE_EXTRA_CA_CERTS=/path/to/ca.crt`.
+Claude Code trusts the CA via `NODE_EXTRA_CA_CERTS=/path/to/ca.crt`; the Python
+relay used by Codex uses `SSL_CERT_FILE=/path/to/ca.crt`.
 The hostname in the hook URL must match a SAN in the cert.
 
 **Startup preflight.** The bridge exits rather than expose a weak listener: a
@@ -457,14 +459,14 @@ lab use. A loopback-only bind needs neither.
 
 Also worth doing:
 
-- Firewall the port to your Claude Code hosts only.
+- Firewall the port to your agent hosts only.
 - Rotate `BRIDGE_TOKEN` by restarting the bridge and updating each host; there's
   no rotation grace period, so do it when nothing is mid-approval.
 - Deny is the safe answer when a prompt on your phone surprises you — it means
   something reached the bridge that you didn't start.
 
-Not available: mutual TLS. Claude Code's HTTP hooks send no client certificate,
-so the bearer token is the client's identity. If you need stronger, put an mTLS
+Not available: mutual TLS. The bundled clients send no client certificate, so
+the bearer token is the client's identity. If you need stronger, put an mTLS
 reverse proxy in front and keep the bridge on loopback behind it.
 
 ## Networking
@@ -480,15 +482,15 @@ Works behind NAT with no port forwarding and no tunnel:
 - Dropped connections are retried by the poll loop (3 s backoff); a host resuming
   from sleep just reconnects.
 
-#### Bridge and Claude Code on different hosts
+#### Bridge and the agent on different hosts
 
 The mechanics of the shared-bridge topology in [Deployment](#deployment). If
 you would rather not set up a token and certificates, running a bridge per
 machine avoids all of this — every listener stays on loopback.
 
-Set `BRIDGE_BIND` to the LAN address (or `0.0.0.0`) on the bridge host and point
-`examples/hooks.settings.json` at `https://bridge.lan:8765/hook` — change the hostname to
-match the SAN in your cert. Token and TLS setup is in
+Set `BRIDGE_BIND` to the LAN address (or `0.0.0.0`) on the bridge host. Point
+Claude Code's hook URL, or Codex's `BRIDGE_URL`, at
+`https://bridge.lan:8765` with a hostname matching the cert SAN. Token and TLS setup is in
 [Securing the channel](#securing-the-channel) above; the
 bridge won't start on a network interface without both. Never expose this port
 to the internet.
@@ -498,7 +500,7 @@ does require a tunnel (`cloudflared` / ngrok).
 
 ## Troubleshooting
 
-If Claude Code is doing the diagnosing, `skills/bridge-ops/` carries this
+If the agent is doing the diagnosing, `skills/bridge-ops/` carries this
 chapter in a form it can act on, plus the hazards it would otherwise walk into
 — chief among them that the audit log holds unredacted secrets and must not be
 printed. Install it with `bridge-for-agents install-skills`.
@@ -513,14 +515,14 @@ thinks is happening, the diagnostic log shows what it tried, and the
 | Check | How |
 |---|---|
 | Is the bridge running? | `curl localhost:8765/health` |
-| Did Claude Code reach it? | the admin page's event count, or `POST /hook` by hand |
-| Are the hooks loaded? | `/hooks` in Claude Code |
+| Did the agent reach it? | the admin page's event count, or `POST /hook` by hand |
+| Are the hooks loaded? | `/hooks` in the agent client |
 | Right chat? | the startup card in **General** names the bot and chat id |
 | A webhook set on the bot? | the bridge calls `deleteWebhook` at startup; a webhook and `getUpdates` cannot both be used |
 
 If the admin page shows events but the phone shows nothing, the problem is
 between the bridge and Telegram. If it shows no events, the problem is between
-Claude Code and the bridge.
+the agent and the bridge.
 
 ### Answers do not resolve
 
@@ -539,16 +541,15 @@ A different cause from the one below, and the logs tell them apart: prompts in
 topics but notifications in General means topic creation is fine and the
 notification could not be attributed to a session.
 
-Claude Code does not tell an MCP server which session it belongs to — there is
-no session-id environment variable, and no other mechanism either — so
-`notify_user` sends none. The bridge infers it from the working directory,
+Agent clients do not reliably tell an MCP server which session it belongs to,
+so `notify_user` may send none. The bridge infers it from the working directory,
 matched against the live sessions the hooks have already reported, which works
 once a session in that directory has sent any hook.
 
 It falls back to General when there is genuinely nothing to match: a
 notification sent before that session's first hook event, one sent from a
 different directory than the hooks report, or one sent by a script rather than
-by Claude Code. The bridge says which:
+by an agent client. The bridge says which:
 
 ```
 notification going to the general thread: no live session for cwd '/repo'
@@ -604,8 +605,9 @@ The preflight refuses a listener that would be unsafe, and says which rule:
 ### Prompts time out while you are away
 
 `BRIDGE_TIMEOUT` (540 s by default) has to stay below the hook `timeout` in
-`settings.json`, so the bridge always answers before Claude Code gives up on it.
-Raise both together. A timed-out prompt is recorded as `timeout` rather than
+the client config, so the bridge always answers before the agent gives up on it.
+Raise both together. For Codex, keep `BRIDGE_HOOK_TIMEOUT` between those two
+values. A timed-out prompt is recorded as `timeout` rather than
 `terminal`, so the audit log tells you afterwards which prompts nobody saw.
 
 ### Something reached the chat that you did not start
@@ -620,5 +622,5 @@ bridge-audit-verify --session a1b2     # one session's full history
 ```
 
 Remember that everyone in the chat can approve, and that a free-text answer
-reaches Claude as text it reads. If the membership is wrong, that is the thing
+reaches the agent as text it reads. If the membership is wrong, that is the thing
 to fix first.
