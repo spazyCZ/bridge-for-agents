@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "bridge-for-agents"
 dynamic = ["version"]
-description = "Answer Claude Code's questions and permission prompts from Telegram, over its HTTP hooks."
+description = "Answer coding agents' permission prompts from Telegram."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Roman Marek", email = "marekr@bacil.net" }]
-keywords = ["claude-code", "hooks", "telegram", "bot", "approvals", "agents"]
+keywords = ["claude-code", "codex", "hooks", "telegram", "bot", "approvals", "agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -33,6 +33,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
 bridge-for-agents = "bridge_for_agents.cli:cli"
 bridge-audit-verify = "bridge_for_agents.audit:main"
 bridge-for-agents-mcp = "bridge_for_agents.mcp:main"
+bridge-for-agents-hook = "bridge_for_agents.hook:main"
 
 [project.urls]
 Homepage = "https://github.com/spazyCZ/bridge-for-agents"
@@ -50,10 +51,11 @@ packages = ["src/bridge_for_agents"]
 
 # The skills are data, not code, but they have to travel with the wheel —
 # otherwise `pip install` gives you a daemon and no way to get the skills that
-# tell Claude Code how to drive it. `bridge-for-agents install-skills` copies
+# tell agent clients how to drive it. `bridge-for-agents install-skills` copies
 # them out of here.
 [tool.hatch.build.targets.wheel.force-include]
 "skills" = "bridge_for_agents/skills"
+"examples/codex.hooks.json" = "bridge_for_agents/examples/codex.hooks.json"
 
 
 [tool.hatch.build.targets.sdist]

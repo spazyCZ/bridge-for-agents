@@ -25,7 +25,7 @@ current_event: ContextVar[dict | None] = ContextVar("current_event", default=Non
 
 # Set by a handler when the reason it gave up is worth distinguishing: a prompt
 # nobody answered reads very differently from one deliberately sent back to the
-# terminal, and both return {} to Claude Code.
+# terminal, and both return {} to the agent client.
 outcome_hint: ContextVar[str | None] = ContextVar("outcome_hint", default=None)
 
 # How the decision arrived: button, text, timeout or terminal. The audit log
@@ -51,7 +51,7 @@ def plain(markup: str) -> str:
 
 @dataclass
 class Event:
-    """One hook request, from arrival to the decision returned to Claude Code."""
+    """One hook request, from arrival to the decision returned to the agent."""
 
     id: int
     ts: float
@@ -223,9 +223,9 @@ class Store:
     def session_for_cwd(self, cwd: str) -> str | None:
         """The session most likely to have sent a notification from `cwd`.
 
-        MCP servers are not told which session they belong to — Claude Code
-        does not expose the session id to them — but they do know their working
-        directory, and the hooks have already told us which sessions are live
+        MCP servers are not reliably told which session they belong to, but
+        they do know their working directory, and the hooks have already told
+        us which sessions are live
         and where. The most recently active unfinished session in that
         directory is right nearly always, and being one topic out beats
         everything landing in General.
@@ -245,7 +245,7 @@ class Store:
         # Then one directory inside the other. A hook reports the working
         # directory at the time it fired, while an MCP server reports
         # CLAUDE_PROJECT_DIR, which stays at the root where the session began —
-        # so running Claude Code from a subdirectory makes the two differ, and
+        # so running the agent from a subdirectory makes the two differ, and
         # requiring equality would send the notification to General.
         return newest([s for s in live if _nested(os.path.normpath(s.cwd), want)])
 

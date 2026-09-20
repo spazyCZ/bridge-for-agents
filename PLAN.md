@@ -61,13 +61,13 @@ convenience features are only kept when they don't weaken either.
 
 ## The invariant
 
-> Every message to the phone originates **on the Claude Code host** — from a
+> Every message to the phone originates **on the agent host** — from a
 > hook, or from a tool the agent called there.
 > Nothing the chat sends can start anything — it can only answer a request
 > that is already open and waiting.
 
 **The first clause was widened, deliberately and once.** It originally read
-"originates from a Claude Code hook". Adding `notify_user` — an MCP tool the
+"originates from an agent hook". Adding `notify_user` — an MCP tool the
 agent calls to push a progress line to the phone — meant a message could also
 originate from a tool call. The wording now says what actually holds.
 

@@ -13,15 +13,15 @@ it holds unredacted tool inputs.
 | Check | Command | What it means |
 |---|---|---|
 | Bridge up? | `curl -s localhost:8765/health` | no answer → not running, or a different port |
-| Did Claude Code reach it? | `curl -s localhost:8765/admin/api/state \| python3 -c "import json,sys;print(json.load(sys.stdin)['totals'])"` | `events: 0` → the problem is upstream of the bridge |
-| Hooks loaded? | `/hooks` in Claude Code | absent → merge `examples/hooks.settings.json` |
-| Hook URL matches? | compare `settings.json` with the port in the startup card | a changed `BRIDGE_PORT` breaks it silently |
+| Did the agent reach it? | `curl -s localhost:8765/admin/api/state \| python3 -c "import json,sys;print(json.load(sys.stdin)['totals'])"` | `events: 0` → the problem is upstream of the bridge |
+| Hooks loaded? | `/hooks` in the client | absent → install the matching file from `examples/` |
+| Hook target matches? | compare the client hook config and `BRIDGE_URL` with the startup card | a changed `BRIDGE_PORT` breaks it silently |
 | Right chat? | the startup card in General | names bot, chat id and scope |
 | Two bridges? | `ps -eo pid,comm,args --no-headers \| awk '$2 ~ /python/ && /-m bridge_for_agents/'` | two → answers land at random |
 | Webhook set? | `curl -s ".../bot$TG_BOT_TOKEN/getWebhookInfo"` | a webhook and `getUpdates` are mutually exclusive; the bridge clears it at startup |
 
 Events arriving but nothing on the phone → the bridge-to-Telegram side. No
-events → the Claude-Code-to-bridge side. That split saves most of the work.
+events → the agent-to-bridge side. That split saves most of the work.
 
 ## Answers do not resolve
 
@@ -44,8 +44,8 @@ Two different faults, and the split tells you which. Prompts getting topics
 while only notifications do not means topic creation works and the notification
 could not be attributed to a session.
 
-MCP servers are never told their session id — Claude Code exposes no such
-variable — so the bridge infers it from the working directory, matched against
+MCP servers are not reliably told their session id, so the bridge infers it
+from the working directory, matched against
 the live sessions the hooks reported. General means nothing matched:
 
 ```
@@ -54,7 +54,7 @@ notification going to the general thread: no live session for cwd '/repo'
 
 Usual causes: the session had not sent a hook yet, the MCP server's directory
 differs from the `cwd` the hooks report, or the sender was a script rather than
-Claude Code. `BRIDGE_SESSION_ID` overrides the inference.
+an agent client. `BRIDGE_SESSION_ID` overrides the inference.
 
 ## Everything lands in General, no topics
 
@@ -101,10 +101,10 @@ Unequal counts mean at least one bridge died without unwinding.
 
 ## Prompts time out while the user is away
 
-`BRIDGE_TIMEOUT` (540 s default) must stay **below** the hook `timeout` in
-`settings.json`, so the bridge always answers before Claude Code stops waiting
-for it. Raise both together, and remember a timed-out prompt returns to a
-terminal that may have nobody at it.
+`BRIDGE_TIMEOUT` (540 s default) must stay **below** the timeout in the client
+hook configuration, so the bridge always answers before the agent stops
+waiting. For Codex, keep `BRIDGE_HOOK_TIMEOUT` between them. A timed-out prompt
+returns to a terminal that may have nobody at it.
 
 ## Something arrived that nobody started
 
@@ -118,5 +118,5 @@ bridge-audit-verify --session <id>       # that session's history
 `auth_failure` records show attempts to POST without a valid token.
 `rejected_unsolicited` records show chat messages that answered nothing. Both
 are signals rather than noise. Remember that everyone in the chat can approve,
-and that a typed answer reaches Claude as text it acts on — if the membership
+and that a typed answer reaches the agent as text it acts on — if the membership
 is wrong, fix that first.

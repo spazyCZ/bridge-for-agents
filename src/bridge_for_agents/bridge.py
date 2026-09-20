@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-claude-bridge
+bridge-for-agents
 
-A one-way approval channel: Claude Code asks, the phone answers.
+A one-way approval channel: an agent asks, the phone answers.
 
     THE INVARIANT
-    Every message to the phone originates from a Claude Code hook. Nothing the
+    Every message to the phone originates from an agent hook. Nothing the
     phone sends can start anything — it can only answer a request that is
     already open and waiting.
 
@@ -16,12 +16,12 @@ prompt into a session, start one, resume one, run a command, or query state.
 be broken; it has one guard and no other branch. Adding a chat-initiated
 command there — however harmless — is what makes the invariant negotiable.
 
-Relays Claude Code hook events to a chat channel (Telegram for now) and
-returns the user's decision back to Claude Code.
+Relays agent hook events to a chat channel (Telegram for now) and returns the
+user's decision to the requesting agent.
 
 Flow:
-  Claude Code --HTTP hook POST--> bridge --Telegram--> phone
-  phone --button / reply--> bridge --JSON hook response--> Claude Code
+  Agent --HTTP hook/relay POST--> bridge --Telegram--> phone
+  phone --button / reply--> bridge --JSON hook response--> Agent
 
 Handled events:
   PermissionRequest            -> Allow / Deny / Terminal buttons
@@ -40,12 +40,12 @@ Env:
   TG_API_BASE    Bot API root, default https://api.telegram.org. Point it at a
                  stand-in server to exercise the bridge without a real bot
   BRIDGE_SCOPE   session | project | flat    (default: session)
-                 session = one topic per Claude Code session
+                 session = one topic per agent session
                  project = one topic per working directory, sessions share it
                  flat    = no topics, everything in one thread
   BRIDGE_STATE   topic map file, default ~/.local/state/claude-bridge/topics.json
   BRIDGE_BIND    interface to listen on, default 127.0.0.1
-                 set to the LAN address (or 0.0.0.0) when Claude Code runs
+                 set to the LAN address (or 0.0.0.0) when the agent runs
                  on another host in your private network
   BRIDGE_TOKEN   shared secret; every hook request must carry
                  `Authorization: Bearer <token>`. Mandatory unless the
@@ -270,8 +270,18 @@ class TelegramChannel(Channel):
         if tid is None:
             return
         self._save_topics()
-        await self.send("🔒 session ended", thread=tid)
-        await self.call("closeForumTopic", chat_id=self.chat_id, message_thread_id=tid)
+        try:
+            await self.send("🔒 session ended", thread=tid)
+        except Exception:
+            log.exception("could not send the session-ended marker to topic %s", tid)
+        try:
+            await self.call("closeForumTopic", chat_id=self.chat_id,
+                            message_thread_id=tid)
+        except Exception:
+            # SessionEnd deliberately schedules this cleanup in the background
+            # so it cannot delay the hook response. Keep transport failures in
+            # the bridge log instead of leaking an unhandled task exception.
+            log.exception("could not close Telegram topic %s", tid)
 
     # -- transport ---------------------------------------------------------
     async def call(self, method: str, **params: Any) -> Any:
@@ -553,7 +563,7 @@ async def on_permission(chan: Channel, ev: dict, thread: Any) -> dict:
     store.answer_source.set(kind)
     if kind == "text":
         # A bare y/n is the decision; anything else denies and carries the text
-        # to Claude as the reason. See replies.py for why allowing is strict.
+        # to the agent as the reason. See replies.py for why allowing is strict.
         behavior, reason = replies.permission(val)
         decision: dict[str, Any] = {"behavior": behavior}
         if reason:
@@ -598,7 +608,7 @@ async def on_ask_user_question(chan: Channel, ev: dict, thread: Any) -> dict:
                     # `answers` maps a question to *the selected option label*.
                     # A decorated value is not a label, so the remark travels in
                     # additionalContext, which exists to put text in front of
-                    # Claude alongside the tool result.
+                    # the agent alongside the tool result.
                     remarks.append(f"On \"{q.get('question', '')}\" the user added: {comment}")
         answers[q.get("question", "")] = val
     out: dict[str, Any] = {"hookEventName": "PreToolUse",
@@ -635,8 +645,8 @@ async def on_user_prompt_submit(chan: Channel, ev: dict, thread: Any) -> dict:
     lookup, which is an API round trip. Recording has already happened in the
     endpoint, which is the whole point: it teaches the bridge that this session
     is live in this directory *before* the agent can call notify_user, so a
-    notification can be attributed to it. Claude Code tells MCP servers nothing
-    about the session, so this is how the bridge learns.
+    notification can be attributed to it. Agent clients do not reliably tell
+    MCP servers about the session, so this is how the bridge learns.
     """
     return {}
 
@@ -725,7 +735,7 @@ async def notify_endpoint(request: web.Request) -> web.Response:
     """Agent-sent notification. Send-only, by design.
 
     This is the one message to the phone that does not originate from a hook.
-    It still originates *on the Claude Code host*, so the security half of the
+    It still originates *on the agent host*, so the security half of the
     invariant is untouched: there is no reply path here, nothing is awaited,
     and nothing from the chat can reach the caller. It calls `send`, never
     `ask` — and that is what keeps it a notification rather than a back door.
@@ -752,7 +762,8 @@ async def notify_endpoint(request: web.Request) -> web.Response:
     cwd = body.get("cwd") or ""
     sid = body.get("session_id") or ""
     if not sid:
-        # Claude Code does not tell an MCP server which session it serves, so
+        # Agent clients do not reliably tell an MCP server which session it
+        # serves, so
         # notify_user cannot send one. Infer it from the working directory,
         # which the server does know — otherwise every notification lands in
         # General rather than beside the prompts from the same session.

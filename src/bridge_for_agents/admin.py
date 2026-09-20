@@ -241,7 +241,7 @@ function renderFeed(d) {
     : "Recent activity · all sessions";
   if (!rows.length) {
     $("#feed").innerHTML = '<p class=empty>Nothing recorded yet. '
-      + 'Trigger a permission prompt in Claude Code.</p>';
+      + 'Trigger a permission prompt in your agent client.</p>';
     return;
   }
   $("#feed").innerHTML = `<table><thead><tr>

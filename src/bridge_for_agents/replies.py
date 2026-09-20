@@ -37,7 +37,7 @@ def permission(text: str) -> tuple[str, str]:
 
     Returns ``("allow", "")``, ``("deny", "")`` or ``("deny", reason)``.
     Anything that is not a bare affirmative or negative denies with the whole
-    message as the reason, which is what Claude then reads.
+    message as the reason, which is what the agent then reads.
     """
     stripped = text.strip()
     norm = _norm(stripped)
@@ -84,5 +84,5 @@ def choice(text: str, labels: list[str]) -> tuple[str | None, str]:
 
 
 def with_comment(label: str, comment: str) -> str:
-    """How a chosen option and its comment reach Claude as one answer."""
+    """How a chosen option and its comment reach the agent as one answer."""
     return f"{label} — {comment}" if comment else label

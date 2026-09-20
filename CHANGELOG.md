@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-20
+
 ### Added
+
+- Codex support through `bridge-for-agents-hook`, a fail-safe stdin/stdout
+  adapter for Codex command hooks. `examples/codex.hooks.json` wires
+  `PermissionRequest`, `UserPromptSubmit`, `Stop`, and `SessionEnd` to the
+  existing bridge, while transport failures abstain and leave the local Codex
+  approval flow in control.
+- `install-skills --client codex` installs the bundled skills in
+  `~/.agents/skills`, and the installation guide now includes Codex hooks and
+  MCP registration.
 
 - Read-only web admin page at `/admin`: outstanding prompts with a countdown,
   a session list, and the event timeline with outcomes and timings. Enabled

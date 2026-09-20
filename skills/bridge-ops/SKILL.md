@@ -1,13 +1,13 @@
 ---
 name: bridge-ops
-description: Set up, run and diagnose bridge-for-agents, the daemon that routes Claude Code's permission prompts and questions to Telegram — and behave well while it is gating you. Use whenever prompts are not reaching the phone, the bridge will not start or has stopped, forum topics are not being created, a bot token needs rotating, or someone is configuring Telegram approvals for Claude Code. Also use when a question is about the bridge's admin page, audit log, hook configuration, or why a command was denied or is waiting for approval — even when the bridge is not named, for example "I'm not getting prompts on my phone" or "why did it refuse that command".
+description: Set up, run and diagnose bridge-for-agents, the daemon that routes Claude Code and Codex permission prompts to Telegram, plus Claude Code questions — and behave well while it is gating you. Use whenever prompts are not reaching the phone, the bridge will not start or has stopped, forum topics are not being created, a bot token needs rotating, or someone is configuring Telegram approvals for either client. Also use when a question is about the bridge's admin page, audit log, hook configuration, or why a command was denied or is waiting for approval — even when the bridge is not named, for example "I'm not getting prompts on my phone" or "why did it refuse that command".
 ---
 
 # Operating the bridge
 
-The bridge turns Claude Code's permission prompts into Telegram messages and
-turns the answers back into decisions. It runs as a daemon on the same machine
-as Claude Code, listening on `127.0.0.1:8765` by default.
+The bridge turns Claude Code and Codex permission prompts into Telegram
+messages and turns the answers back into decisions. It runs as a daemon on the
+same machine as the agent client, listening on `127.0.0.1:8765` by default.
 
 Read the hazards first. They are short, they are specific to this system, and
 each is something reasonable that goes wrong here.
@@ -91,8 +91,8 @@ curl -s localhost:8765/admin/api/state | python3 -c "import json,sys;print(json.
 
 If the admin page shows events arriving but nothing reaches the phone, the
 problem is between the bridge and Telegram. If it shows no events, the problem
-is between Claude Code and the bridge — check `/hooks` in Claude Code and that
-the hook URL matches the port the bridge actually bound.
+is between the agent and the bridge — check `/hooks` in the client and that its
+hook configuration points at the bridge's actual port.
 
 `references/diagnose.md` has one row per symptom, with the single command that
 separates the likely causes. Read it when the three checks above do not settle

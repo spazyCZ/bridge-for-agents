@@ -70,7 +70,9 @@ def test_tools_list_exposes_exactly_one_send_only_tool():
 def test_the_description_tells_the_model_it_cannot_get_a_reply():
     d = mcp.handle(rpc("tools/list"))["result"]["tools"][0]["description"]
     assert "one-way" in d
-    assert "AskUserQuestion" in d          # points at the right tool for questions
+    assert "question tool" in d
+    assert "AskUserQuestion" in d
+    assert "Codex questions stay" in d
     assert "credentials" in d
 
 
