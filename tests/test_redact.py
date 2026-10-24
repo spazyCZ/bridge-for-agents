@@ -30,7 +30,7 @@ def count(text: str) -> int:
     ("sk-proj-" + "d" * 40, "openai key"),
     ("xoxb-1234567890-abcdefghij", "slack token"),
     ("AIza" + "e" * 35, "google key"),
-    ("8784009547:AAFZ9Mb7OzluIN2kqViXZU8mBXxgGA1gT8U", "telegram token"),
+    ("123456789:" + "A" * 35, "telegram token"),
     ("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27u", "jwt"),
 ])
 def test_shaped_credentials_are_hidden(secret, label):
