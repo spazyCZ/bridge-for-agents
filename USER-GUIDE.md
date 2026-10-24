@@ -169,7 +169,7 @@ session thread, so it is somewhere you can find it later:
 host     rma-ntb
 version  0.1.0
 bot      @rma_cc_private_01_bot
-chat     -1004464194534 · forum
+chat     -1001234567890 · forum
 scope    session · answer within 300s
 ```
 
